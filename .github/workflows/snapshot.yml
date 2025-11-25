@@ -1,9 +1,16 @@
 name: Snapshot Release
+permissions:
+  contents: write  # 必需权限
 
 on:
   push:
-    branches:
-      - '**'  # 所有分支提交时触发（可替换为特定分支如 main）
+    branches: [ "**" ]  # 自动触发：所有分支提交
+  workflow_dispatch:    # 手动触发入口（[[11]](#__11)）
+    inputs:             # 可选：定义手动触发时的输入参数
+      environment:
+        description: '手动发布'
+        required: true
+        default: 'stage'
 
 jobs:
   build-and-release:
