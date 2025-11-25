@@ -40,13 +40,13 @@ jobs:
         run: pnpm build
 
       - name: Create Snapshot Release
-        uses: softprops/action-gh-release@v1  # 替代官方归档方案（[[1]](#__1) [[5]](#__5)）
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: snapshot-${{ steps.commit-id.outputs.short_sha }}
           name: ${{ steps.package-version.outputs.version }}-${{ steps.commit-id.outputs.short_sha }}
           body: "Automated snapshot build from commit ${{ github.sha }}"
-          prerelease: true  # 标记为预发布版本（[[0]](#__0) [[10]](#__10)）
+          prerelease: true
           files: |
             dist/**
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
