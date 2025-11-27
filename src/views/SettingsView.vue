@@ -1,7 +1,13 @@
 <template>
   <div class="settings-view">
     <el-card header="全局设置">
-      <el-form v-loading="loading" :model="settings" label-width="180px" class="settings-form">
+      <el-form
+        v-loading="loading"
+        :model="settings"
+        :label-position="formLabelPosition"
+        :label-width="formLabelWidth"
+        class="settings-form"
+      >
         <section class="settings-section">
           <div class="section-header">
             <h3>下载与文件</h3>
@@ -352,6 +358,7 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as api from '@/api/transmission'
 import type { SessionConfig } from '@/types/transmission'
+import { useMediaQuery } from '@/utils/useMediaQuery'
 
 const loading = ref(false)
 const settings = ref<Partial<SessionConfig>>({})
@@ -517,12 +524,17 @@ const handleTestPort = async () => {
 onMounted(() => {
   loadSettings()
 })
+
+const isCompact = useMediaQuery('(max-width: 768px)')
+const formLabelPosition = computed(() => (isCompact.value ? 'top' : 'right'))
+const formLabelWidth = computed(() => (isCompact.value ? '120px' : '180px'))
 </script>
 
 <style scoped>
 .settings-view {
   max-width: 1100px;
   margin: 0 auto;
+  padding: 0 20px 40px;
 }
 
 .settings-form .inline-input {
@@ -532,6 +544,13 @@ onMounted(() => {
 
 .settings-form .inline-number {
   margin-left: 12px;
+}
+
+.settings-form :deep(.el-form-item__content) {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .full-width {
@@ -544,6 +563,12 @@ onMounted(() => {
 
 .actions {
   margin-top: 20px;
+}
+
+.actions :deep(.el-form-item__content) {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .settings-section {
@@ -616,5 +641,44 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .settings-view {
+    padding: 0 12px 30px;
+  }
+
+  .settings-section {
+    padding: 16px;
+  }
+
+  .settings-form .inline-input,
+  .settings-form .inline-number {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .connection-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions :deep(.el-form-item__content) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions :deep(.el-button) {
+    width: 100%;
+  }
+
+  .settings-form :deep(.el-row) {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .settings-form :deep(.el-col) {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
 }
 </style>

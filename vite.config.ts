@@ -20,7 +20,7 @@ export default defineConfig({
     proxy: {
       // 代理 Transmission RPC 请求
       '/transmission': {
-        target: 'http://127.0.0.1:9091',
+        target: 'http://10.229.160.54:9091',
         changeOrigin: true,
       },
     },

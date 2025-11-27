@@ -81,16 +81,23 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
 }
 
 .login-card {
-  width: 400px;
+  width: min(420px, 100%);
 }
 
 .login-card h2 {
   margin: 0;
   text-align: center;
+}
+
+@media (max-width: 600px) {
+  .login-view {
+    padding: 12px;
+  }
 }
 </style>

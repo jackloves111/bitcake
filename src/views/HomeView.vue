@@ -32,152 +32,271 @@
           批量限速
         </el-button>
       </div>
+      <el-button
+        v-if="isMobile"
+        class="filter-toggle"
+        :icon="Filter"
+        plain
+        @click="toggleMobileFilters"
+      >
+        {{ showMobileFilters ? '收起筛选' : '展开筛选' }}
+      </el-button>
     </div>
 
-    <div class="filter-submenu">
-      <div class="submenu-section">
-        <span class="submenu-label">状态：</span>
-        <el-button-group>
-          <el-button
-            v-for="status in statusOptions"
-            :key="status.value"
-            size="small"
-            :type="statusFilter === status.value ? 'primary' : 'default'"
-            @click="statusFilter = status.value"
-          >
-            {{ status.label }}
-          </el-button>
-        </el-button-group>
+    <Transition name="fade">
+      <div
+        v-if="!isMobile || showMobileFilters"
+        class="filter-submenu"
+        :class="{ 'is-mobile': isMobile }"
+      >
+        <div class="submenu-section">
+          <span class="submenu-label">状态：</span>
+          <el-button-group>
+            <el-button
+              v-for="status in statusOptions"
+              :key="status.value"
+              size="small"
+              :type="statusFilter === status.value ? 'primary' : 'default'"
+              @click="statusFilter = status.value"
+            >
+              {{ status.label }}
+            </el-button>
+          </el-button-group>
+        </div>
+        <div class="submenu-section">
+          <span class="submenu-label">Tracker：</span>
+          <el-dropdown @command="handleTrackerCommand">
+            <el-button size="small">
+              {{ currentTrackerLabel }}
+              <el-icon class="dropdown-icon">
+                <ArrowDown />
+              </el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="">全部 Tracker</el-dropdown-item>
+                <el-dropdown-item
+                  v-for="tracker in trackerOptions"
+                  :key="tracker.value"
+                  :command="tracker.value"
+                >
+                  {{ tracker.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+        <div class="submenu-section search-section">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索种子..."
+            :prefix-icon="Search"
+            clearable
+          />
+        </div>
+        <div class="submenu-section update-info" v-if="lastFetchedAt">
+          <span>数据更新时间：{{ lastFetchedAt }}</span>
+        </div>
       </div>
-      <div class="submenu-section">
-        <span class="submenu-label">Tracker：</span>
-        <el-dropdown @command="handleTrackerCommand">
-          <el-button size="small">
-            {{ currentTrackerLabel }}
-            <el-icon class="dropdown-icon">
-              <ArrowDown />
-            </el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="">全部 Tracker</el-dropdown-item>
-              <el-dropdown-item
-                v-for="tracker in trackerOptions"
-                :key="tracker.value"
-                :command="tracker.value"
-              >
-                {{ tracker.label }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-      <div class="submenu-section search-section">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索种子..."
-          :prefix-icon="Search"
-          clearable
-        />
-      </div>
-      <div class="submenu-section update-info" v-if="lastFetchedAt">
-        <span>数据更新时间：{{ lastFetchedAt }}</span>
-      </div>
-    </div>
+    </Transition>
 
     <div class="table-container">
-      <el-table
-        ref="tableRef"
-        v-loading="loading"
-        :data="paginatedTorrents"
-        stripe
-        style="width: 100%"
-        row-key="id"
-        :reserve-selection="true"
-        @selection-change="handleSelectionChange"
-        @sort-change="handleSortChange"
-        @row-contextmenu="handleRowContextMenu"
-      >
-        <el-table-column type="selection" width="48" />
-        <el-table-column prop="name" label="名称" min-width="260" sortable="custom" show-overflow-tooltip />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tooltip v-if="isTorrentError(row)" :content="row.errorString || '未知错误'" placement="top">
-              <el-tag :type="getStatusType(row)">
+      <div class="table-scroll">
+        <el-table
+          ref="tableRef"
+          v-loading="loading"
+          :data="paginatedTorrents"
+          stripe
+          border
+          style="width: 100%"
+          row-key="id"
+          :reserve-selection="true"
+          @selection-change="handleSelectionChange"
+          @sort-change="handleSortChange"
+          @row-contextmenu="handleRowContextMenu"
+          @header-dragend="handleColumnResize"
+        >
+          <el-table-column
+            type="selection"
+            column-key="selection"
+            width="48"
+            :resizable="false"
+          />
+          <el-table-column
+            prop="name"
+            column-key="name"
+            label="名称"
+            :width="getColumnWidth('name', isCompactTable ? 260 : 320)"
+            :min-width="240"
+            sortable="custom"
+            show-overflow-tooltip
+          />
+          <el-table-column
+            column-key="status"
+            label="状态"
+            :width="getColumnWidth('status', 120)"
+            :min-width="100"
+          >
+            <template #default="{ row }">
+              <el-tooltip v-if="isTorrentError(row)" :content="row.errorString || '未知错误'" placement="top">
+                <el-tag :type="getStatusType(row)">
+                  {{ getStatusText(row) }}
+                </el-tag>
+              </el-tooltip>
+              <el-tag v-else :type="getStatusType(row)">
                 {{ getStatusText(row) }}
               </el-tag>
-            </el-tooltip>
-            <el-tag v-else :type="getStatusType(row)">
-              {{ getStatusText(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="percentDone" label="进度" width="120" sortable="custom">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="Math.round(row.percentDone * 100)"
-              :status="row.percentDone === 1 ? 'success' : undefined"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column prop="totalSize" label="大小" width="140" sortable="custom">
-          <template #default="{ row }">
-            {{ formatBytes(row.totalSize) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="uploadRatio" label="分享率" width="120" sortable="custom">
-          <template #default="{ row }">
-            <el-tag size="small" :class="['ratio-tag', getRatioClass(row.uploadRatio)]">
-              {{ formatRatio(row.uploadRatio) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="defaultTracker" label="默认 Tracker" min-width="180" sortable="custom">
-          <template #default="{ row }">
-            {{ getDefaultTracker(row) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="peersDownloading" label="种子" width="120" sortable="custom">
-          <template #default="{ row }">
-            {{ getSeeders(row) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="peersUploading" label="用户" width="120" sortable="custom">
-          <template #default="{ row }">
-            {{ getLeechers(row) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="rateDownload" label="下载速度" width="120" sortable="custom">
-          <template #default="{ row }">
-            {{ formatSpeed(row.rateDownload) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="rateUpload" label="上传速度" width="120" sortable="custom">
-          <template #default="{ row }">
-            {{ formatSpeed(row.rateUpload) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="uploadedEver" label="已上传" width="140" sortable="custom">
-          <template #default="{ row }">
-            {{ formatBytes(row.uploadedEver || 0) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="activityDate" label="最后活动" width="170" sortable="custom">
-          <template #default="{ row }">
-            {{ formatLastActivity(row.activityDate) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="标签" min-width="160">
-          <template #default="{ row }">
-            <template v-if="row.labels?.length">
-              <el-tag v-for="label in row.labels" :key="label" size="small" class="label-tag">
-                {{ label }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="percentDone"
+            column-key="percentDone"
+            label="进度"
+            :width="getColumnWidth('percentDone', 140)"
+            :min-width="120"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              <el-progress
+                :percentage="Math.round(row.percentDone * 100)"
+                :status="row.percentDone === 1 ? 'success' : undefined"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="totalSize"
+            column-key="totalSize"
+            label="大小"
+            :width="getColumnWidth('totalSize', 140)"
+            :min-width="120"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ formatBytes(row.totalSize) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="uploadRatio"
+            prop="uploadRatio"
+            label="分享率"
+            :width="getColumnWidth('uploadRatio', 130)"
+            :min-width="110"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              <el-tag size="small" :class="['ratio-tag', getRatioClass(row.uploadRatio)]">
+                {{ formatRatio(row.uploadRatio) }}
               </el-tag>
             </template>
-            <span v-else>—</span>
-          </template>
-        </el-table-column>
-      </el-table>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="defaultTracker"
+            prop="defaultTracker"
+            label="默认 Tracker"
+            :width="getColumnWidth('defaultTracker', 200)"
+            :min-width="160"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ getDefaultTracker(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="peersDownloading"
+            prop="peersDownloading"
+            label="种子"
+            :width="getColumnWidth('peersDownloading', 130)"
+            :min-width="110"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ getSeeders(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="peersUploading"
+            prop="peersUploading"
+            label="用户"
+            :width="getColumnWidth('peersUploading', 130)"
+            :min-width="110"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ getLeechers(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="rateDownload"
+            column-key="rateDownload"
+            label="下载速度"
+            :width="getColumnWidth('rateDownload', 140)"
+            :min-width="120"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ formatSpeed(row.rateDownload) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="rateUpload"
+            column-key="rateUpload"
+            label="上传速度"
+            :width="getColumnWidth('rateUpload', 140)"
+            :min-width="120"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ formatSpeed(row.rateUpload) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="uploadedEver"
+            prop="uploadedEver"
+            label="已上传"
+            :width="getColumnWidth('uploadedEver', 150)"
+            :min-width="130"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ formatBytes(row.uploadedEver || 0) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="activityDate"
+            prop="activityDate"
+            label="最后活动"
+            :width="getColumnWidth('activityDate', 180)"
+            :min-width="150"
+            sortable="custom"
+          >
+            <template #default="{ row }">
+              {{ formatLastActivity(row.activityDate) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="!isCompactTable"
+            column-key="labels"
+            label="标签"
+            :width="getColumnWidth('labels', 200)"
+            :min-width="150"
+          >
+            <template #default="{ row }">
+              <template v-if="row.labels?.length">
+                <el-tag v-for="label in row.labels" :key="label" size="small" class="label-tag">
+                  {{ label }}
+                </el-tag>
+              </template>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
       <div class="pagination" v-if="displayedTorrents.length > 0">
         <el-pagination
@@ -214,11 +333,12 @@
       <button @click="handleContextAction('reannounce')">重新汇报</button>
       <button @click="handleContextAction('location')">变更保存目录</button>
       <button @click="handleContextAction('detail')">查看详情</button>
+      <button @click="handleContextAction('limit')">限速设置</button>
       <button class="danger" @click="handleContextAction('delete')">删除</button>
     </div>
 
     <!-- 添加种子对话框 -->
-    <el-dialog v-model="showAddDialog" title="添加种子" width="500px">
+    <el-dialog v-model="showAddDialog" title="添加种子" :width="defaultDialogWidth">
       <el-form :model="addForm" label-width="100px">
         <el-form-item label="种子来源">
           <el-radio-group v-model="addForm.type">
@@ -257,7 +377,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showLocationDialog" title="变更保存目录" width="500px">
+    <el-dialog v-model="showLocationDialog" title="变更保存目录" :width="defaultDialogWidth">
       <el-form :model="locationForm" label-width="120px">
         <el-form-item label="新的保存目录">
           <el-input v-model="locationForm.path" placeholder="/data/downloads" />
@@ -272,175 +392,142 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showDetailDialog" title="种子详情" width="720px" class="detail-dialog">
+    <el-dialog
+      v-model="showDetailDialog"
+      title="种子详情"
+      :width="detailDialogWidth"
+      class="detail-dialog"
+    >
       <el-skeleton :loading="detailLoading" animated>
         <template #default>
           <template v-if="detailTorrent">
             <div class="detail-body">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <div class="detail-label">名称</div>
-                  <div class="detail-value">{{ detailTorrent.name }}</div>
-                </div>
-              <div class="detail-item">
-                <div class="detail-label">状态</div>
-                <div class="detail-value">{{ getStatusText(detailTorrent) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">大小</div>
-                <div class="detail-value">{{ formatBytes(detailTorrent.totalSize) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">进度</div>
-                <div class="detail-value">{{ Math.round(detailTorrent.percentDone * 100) }}%</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">保存目录</div>
-                <div class="detail-value">{{ detailTorrent.downloadDir }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">哈希</div>
-                <div class="detail-value hash-value">{{ detailTorrent.hashString }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">下载量</div>
-                <div class="detail-value">{{ formatBytes(detailTorrent.downloadedEver || 0) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">上传量</div>
-                <div class="detail-value">{{ formatBytes(detailTorrent.uploadedEver || 0) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">分享率</div>
-                <div class="detail-value">{{ formatRatio(detailTorrent.uploadRatio) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">最后活动</div>
-                <div class="detail-value">{{ formatLastActivity(detailTorrent.activityDate) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">创建时间</div>
-                <div class="detail-value">{{ formatTorrentDate(detailTorrent.dateCreated) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">添加时间</div>
-                <div class="detail-value">{{ formatTorrentDate(detailTorrent.addedDate) }}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">错误信息</div>
-                <div class="detail-value">{{ detailTorrent.errorString || '—' }}</div>
-              </div>
+              <el-tabs v-model="detailActiveTab" class="detail-tabs">
+                <el-tab-pane label="基础信息" name="basic">
+                  <div class="detail-grid">
+                    <div class="detail-item">
+                      <div class="detail-label">名称</div>
+                      <div class="detail-value">{{ detailTorrent.name }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">状态</div>
+                      <div class="detail-value">{{ getStatusText(detailTorrent) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">大小</div>
+                      <div class="detail-value">{{ formatBytes(detailTorrent.totalSize) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">进度</div>
+                      <div class="detail-value">{{ Math.round(detailTorrent.percentDone * 100) }}%</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">保存目录</div>
+                      <div class="detail-value">{{ detailTorrent.downloadDir }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">哈希</div>
+                      <div class="detail-value hash-value">{{ detailTorrent.hashString }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">下载量</div>
+                      <div class="detail-value">{{ formatBytes(detailTorrent.downloadedEver || 0) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">上传量</div>
+                      <div class="detail-value">{{ formatBytes(detailTorrent.uploadedEver || 0) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">分享率</div>
+                      <div class="detail-value">{{ formatRatio(detailTorrent.uploadRatio) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">最后活动</div>
+                      <div class="detail-value">{{ formatLastActivity(detailTorrent.activityDate) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">创建时间</div>
+                      <div class="detail-value">{{ formatTorrentDate(detailTorrent.dateCreated) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">添加时间</div>
+                      <div class="detail-value">{{ formatTorrentDate(detailTorrent.addedDate) }}</div>
+                    </div>
+                    <div class="detail-item">
+                      <div class="detail-label">错误信息</div>
+                      <div class="detail-value">{{ detailTorrent.errorString || '—' }}</div>
+                    </div>
+                  </div>
+                </el-tab-pane>
+                <el-tab-pane label="内容" name="content">
+                  <div class="files-tab">
+                    <div class="files-table" v-if="detailFiles.length">
+                      <div class="files-actions">
+                        <span>已选择 {{ detailSelectedFileCount }} / {{ detailTotalFileCount }}</span>
+                        <div class="files-actions-buttons">
+                          <el-button size="small" @click="toggleAllDetailFiles(true)">全选</el-button>
+                          <el-button size="small" @click="toggleAllDetailFiles(false)">全不选</el-button>
+                          <el-button
+                            type="primary"
+                            size="small"
+                            :loading="detailFilesSaving"
+                            @click="saveDetailFileSelections"
+                          >
+                            保存部分下载
+                          </el-button>
+                        </div>
+                      </div>
+                      <el-table
+                        :data="detailFiles"
+                        size="small"
+                        border
+                        height="320"
+                        :row-key="detailFileRowKey"
+                      >
+                        <el-table-column label="下载" width="100">
+                          <template #default="{ row }">
+                            <el-checkbox v-model="detailFileSelections[row.index]" />
+                          </template>
+                        </el-table-column>
+                        <el-table-column prop="name" label="文件" min-width="240" />
+                        <el-table-column label="大小" width="120">
+                          <template #default="{ row }">
+                            {{ formatBytes(row.length) }}
+                          </template>
+                        </el-table-column>
+                        <el-table-column label="进度" width="180">
+                          <template #default="{ row }">
+                            {{ formatBytes(row.bytesCompleted) }} / {{ formatBytes(row.length) }}
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                    </div>
+                    <p v-else class="table-placeholder">无文件信息</p>
+                  </div>
+                </el-tab-pane>
+                <el-tab-pane label="Tracker" name="tracker">
+                  <div class="tracker-tab">
+                    <el-table
+                      v-if="detailTrackerRows.length"
+                      :data="detailTrackerRows"
+                      size="small"
+                      border
+                      style="margin-bottom: 16px"
+                    >
+                      <el-table-column prop="tier" label="Tier" width="70" />
+                      <el-table-column prop="announce" label="Announce URL" min-width="220" />
+                      <el-table-column prop="status" label="汇报状态" width="160">
+                        <template #default="{ row }">
+                          <el-tag :type="row.statusType">{{ row.statusText }}</el-tag>
+                        </template>
+                      </el-table-column>
+                      <el-table-column prop="lastAnnounce" label="上次汇报" width="160" />
+                    </el-table>
+                    <p v-else class="table-placeholder">未配置 Tracker</p>
+                  </div>
+                </el-tab-pane>
+              </el-tabs>
             </div>
-            <h4 class="section-title">Tracker</h4>
-            <el-table
-              v-if="detailTrackerRows.length"
-              :data="detailTrackerRows"
-              size="small"
-              border
-              style="margin-bottom: 16px"
-            >
-              <el-table-column prop="tier" label="Tier" width="70" />
-              <el-table-column prop="announce" label="Announce URL" min-width="220" />
-              <el-table-column prop="status" label="汇报状态" width="160">
-                <template #default="{ row }">
-                  <el-tag :type="row.statusType">{{ row.statusText }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="lastAnnounce" label="上次汇报" width="160" />
-            </el-table>
-            <p v-else class="table-placeholder">未配置 Tracker</p>
-
-            <h4 class="section-title">文件列表 ({{ detailTotalFileCount }})</h4>
-            <div class="files-table" v-if="detailFiles.length">
-              <div class="files-actions">
-                <span>已选择 {{ detailSelectedFileCount }} / {{ detailTotalFileCount }}</span>
-                <div class="files-actions-buttons">
-                  <el-button size="small" @click="toggleAllDetailFiles(true)">全选</el-button>
-                  <el-button size="small" @click="toggleAllDetailFiles(false)">全不选</el-button>
-                  <el-button
-                    type="primary"
-                    size="small"
-                    :loading="detailFilesSaving"
-                    @click="saveDetailFileSelections"
-                  >
-                    保存部分下载
-                  </el-button>
-                </div>
-              </div>
-              <el-table
-                :data="detailFiles"
-                size="small"
-                border
-                height="320"
-                :row-key="detailFileRowKey"
-              >
-                <el-table-column label="下载" width="100">
-                  <template #default="{ row }">
-                    <el-checkbox v-model="detailFileSelections[row.index]" />
-                  </template>
-                </el-table-column>
-                <el-table-column prop="name" label="文件" min-width="240" />
-                <el-table-column label="大小" width="120">
-                  <template #default="{ row }">
-                    {{ formatBytes(row.length) }}
-                  </template>
-                </el-table-column>
-                <el-table-column label="进度" width="180">
-                  <template #default="{ row }">
-                    {{ formatBytes(row.bytesCompleted) }} / {{ formatBytes(row.length) }}
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-            <p v-else class="table-placeholder">无文件信息</p>
-
-            <h4 class="section-title">限速设置</h4>
-            <el-form label-width="110px" class="limit-form">
-              <el-form-item label="下载限速">
-                <div class="limit-row">
-                  <el-switch
-                    v-model="detailLimitForm.downloadLimited"
-                    active-text="启用"
-                    inactive-text="关闭"
-                  />
-                  <el-input-number
-                    v-model="detailLimitForm.downloadLimit"
-                    :min="0"
-                    :max="1000000"
-                    :disabled="!detailLimitForm.downloadLimited"
-                    controls-position="right"
-                  />
-                  <span class="limit-unit">KB/s</span>
-                </div>
-              </el-form-item>
-              <el-form-item label="上传限速">
-                <div class="limit-row">
-                  <el-switch
-                    v-model="detailLimitForm.uploadLimited"
-                    active-text="启用"
-                    inactive-text="关闭"
-                  />
-                  <el-input-number
-                    v-model="detailLimitForm.uploadLimit"
-                    :min="0"
-                    :max="1000000"
-                    :disabled="!detailLimitForm.uploadLimited"
-                    controls-position="right"
-                  />
-                  <span class="limit-unit">KB/s</span>
-                </div>
-              </el-form-item>
-            </el-form>
-            <div class="detail-actions">
-              <el-button
-                type="primary"
-                :loading="detailLimitSaving"
-                @click="saveDetailLimit"
-              >
-                保存限速
-              </el-button>
-            </div>
-          </div>
           </template>
           <p v-else class="table-placeholder">未找到种子详情</p>
         </template>
@@ -450,9 +537,18 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="limitDialogVisible" title="批量限速" width="480px">
-      <p class="dialog-subtitle">已选种子：{{ limitDialogIds.length }} 个</p>
-      <el-form :model="limitDialogForm" label-width="120px">
+    <el-dialog
+      v-model="limitDialogVisible"
+      :title="limitDialogTitle"
+      :width="limitDialogWidth"
+    >
+      <p class="dialog-subtitle" v-if="limitDialogMode === 'batch'">
+        已选种子：{{ limitDialogIds.length }} 个
+      </p>
+      <p class="dialog-subtitle" v-else>
+        {{ limitDialogTargetName }}
+      </p>
+      <el-form :model="limitDialogForm" label-width="120px" v-loading="limitDialogLoading">
         <el-form-item label="下载限速">
           <div class="limit-row">
             <el-switch
@@ -490,13 +586,13 @@
       </el-form>
       <template #footer>
         <el-button @click="limitDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="limitDialogSaving" @click="submitBatchLimit">
+        <el-button type="primary" :loading="limitDialogSaving" @click="submitLimitSettings">
           保存
         </el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="removeDialog.visible" title="删除种子" width="420px">
+    <el-dialog v-model="removeDialog.visible" title="删除种子" :width="removeDialogWidth">
       <p class="delete-message">
         {{ removeDialog.message || `确定删除选中的 ${removeDialog.ids.length} 个种子？` }}
       </p>
@@ -512,7 +608,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { TableInstance } from 'element-plus'
+import type { TableInstance, TableColumnCtx } from 'element-plus'
 import dayjs from 'dayjs'
 import {
   Plus,
@@ -523,13 +619,16 @@ import {
   Delete,
   Upload,
   ArrowDown,
+  Filter,
 } from '@element-plus/icons-vue'
 import * as api from '@/api/transmission'
 import type { Torrent, TorrentStatus } from '@/types/transmission'
 import { TorrentStatusEnum } from '@/types/transmission'
 import { getTrackerHost } from '@/utils/torrent'
+import { useMediaQuery } from '@/utils/useMediaQuery'
 
 const REFRESH_INTERVAL = 2000
+const COLUMN_WIDTH_STORAGE_KEY = 'tv_table_column_widths'
 const DETAIL_FIELDS = [
   'id',
   'name',
@@ -579,6 +678,22 @@ const statusTextMap: Record<TorrentStatus, string> = {
   [TorrentStatusEnum.SEED]: '做种中',
 }
 
+const defaultColumnWidths: Record<string, number> = {
+  name: 300,
+  status: 120,
+  percentDone: 140,
+  totalSize: 140,
+  uploadRatio: 130,
+  defaultTracker: 200,
+  peersDownloading: 130,
+  peersUploading: 130,
+  rateDownload: 140,
+  rateUpload: 140,
+  uploadedEver: 150,
+  activityDate: 180,
+  labels: 200,
+}
+
 const statusOptions: { label: string; value: StatusFilter }[] = [
   { label: '全部', value: 'all' },
   { label: '错误', value: 'error' },
@@ -617,10 +732,9 @@ const locationTarget = ref<Torrent | null>(null)
 const showDetailDialog = ref(false)
 const detailLoading = ref(false)
 const detailTorrent = ref<Torrent | null>(null)
+const detailActiveTab = ref<'basic' | 'content' | 'tracker'>('basic')
 const detailFileSelections = ref<Record<number, boolean>>({})
 const detailFilesSaving = ref(false)
-const detailLimitForm = ref<LimitFormState>(createEmptyLimitForm())
-const detailLimitSaving = ref(false)
 const tableRef = ref<TableInstance | null>(null)
 const suppressSelectionChange = ref(false)
 const removeDialog = ref({
@@ -634,6 +748,22 @@ const limitDialogVisible = ref(false)
 const limitDialogIds = ref<number[]>([])
 const limitDialogForm = ref<LimitFormState>(createEmptyLimitForm())
 const limitDialogSaving = ref(false)
+const limitDialogMode = ref<'batch' | 'single'>('batch')
+const limitDialogTargetName = ref('')
+const limitDialogLoading = ref(false)
+const limitDialogTitle = computed(() =>
+  limitDialogMode.value === 'single' ? '限速设置' : '批量限速'
+)
+const isMobile = useMediaQuery('(max-width: 768px)')
+const isCompactTable = useMediaQuery('(max-width: 1100px)')
+const showMobileFilters = ref(!isMobile.value)
+const columnWidths = ref<Record<string, number>>({ ...defaultColumnWidths })
+const createDialogWidth = (desktopWidth: string, mobileWidth = '94vw') =>
+  computed(() => (isMobile.value ? mobileWidth : desktopWidth))
+const defaultDialogWidth = createDialogWidth('500px')
+const detailDialogWidth = createDialogWidth('720px', '96vw')
+const limitDialogWidth = createDialogWidth('480px')
+const removeDialogWidth = createDialogWidth('420px', '90vw')
 
 type SortOrder = 'ascending' | 'descending' | null
 
@@ -647,6 +777,12 @@ const pageSize = ref(50)
 const pageSizeOptions = [25, 50, 100, 200, 500]
 
 const hasSelection = computed(() => selectedTorrents.value.length > 0)
+const toggleMobileFilters = () => {
+  if (!isMobile.value) return
+  showMobileFilters.value = !showMobileFilters.value
+}
+const getColumnWidth = (key: string, fallback?: number) =>
+  columnWidths.value[key] ?? fallback ?? defaultColumnWidths[key] ?? 120
 
 const contextMenu = ref<{
   visible: boolean
@@ -664,6 +800,32 @@ const contextMenuRef = ref<HTMLElement | null>(null)
 const getDefaultTracker = (torrent: Torrent): string => {
   const tracker = torrent.trackers?.[0]
   return tracker ? getTrackerHost(tracker.announce) : '—'
+}
+
+const persistColumnWidths = () => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      COLUMN_WIDTH_STORAGE_KEY,
+      JSON.stringify(columnWidths.value)
+    )
+  } catch (error) {
+    console.warn('保存列宽失败', error)
+  }
+}
+
+const loadColumnWidths = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const stored = window.localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      columnWidths.value = { ...defaultColumnWidths, ...parsed }
+    }
+  } catch (error) {
+    console.warn('读取列宽失败', error)
+    columnWidths.value = { ...defaultColumnWidths }
+  }
 }
 
 const getPeersDownloading = (torrent: Torrent): number => {
@@ -876,6 +1038,10 @@ watch(pageSize, () => {
   currentPage.value = 1
 })
 
+watch(isMobile, (mobile) => {
+  showMobileFilters.value = !mobile
+})
+
 watch(
   () => displayedTorrents.value.length,
   (total) => {
@@ -914,6 +1080,9 @@ watch(
 watch(limitDialogVisible, (visible) => {
   if (!visible) {
     limitDialogIds.value = []
+    limitDialogMode.value = 'batch'
+    limitDialogTargetName.value = ''
+    limitDialogLoading.value = false
     resetLimitDialogForm()
   }
 })
@@ -975,6 +1144,26 @@ const adjustContextMenuPosition = () => {
   }
   contextMenu.value.x = Math.max(padding, x)
   contextMenu.value.y = Math.max(padding, y)
+}
+
+const handleColumnResize = (
+  newWidth: number,
+  _oldWidth: number,
+  column: TableColumnCtx<Torrent>
+) => {
+  const key = column.columnKey as string | undefined
+  if (!key || key === 'selection') return
+  const minWidth = Number(column.minWidth) || 80
+  const normalizedWidth = Math.max(minWidth, Math.round(newWidth))
+  if (columnWidths.value[key] === normalizedWidth) return
+  columnWidths.value = {
+    ...columnWidths.value,
+    [key]: normalizedWidth,
+  }
+  persistColumnWidths()
+  nextTick(() => {
+    tableRef.value?.doLayout?.()
+  })
 }
 
 // 加载种子列表
@@ -1104,7 +1293,15 @@ const removeSelected = () => {
 }
 
 const handleContextAction = (
-  action: 'start' | 'stop' | 'delete' | 'verify' | 'reannounce' | 'location' | 'detail'
+  action:
+    | 'start'
+    | 'stop'
+    | 'delete'
+    | 'verify'
+    | 'reannounce'
+    | 'location'
+    | 'detail'
+    | 'limit'
 ) => {
   const torrent = contextMenu.value.torrent
   if (!torrent) return
@@ -1135,6 +1332,10 @@ const handleContextAction = (
   }
   if (action === 'detail') {
     openDetailDialog(torrent)
+    return
+  }
+  if (action === 'limit') {
+    openSingleLimitDialog(torrent)
   }
 }
 
@@ -1218,7 +1419,6 @@ const fetchTorrentDetail = async (id: number) => {
 const applyDetailData = (torrent: Torrent) => {
   detailTorrent.value = torrent
   initializeDetailFileSelections()
-  initializeDetailLimitForm()
 }
 
 const refreshDetailData = async () => {
@@ -1234,6 +1434,7 @@ const refreshDetailData = async () => {
 }
 
 const openDetailDialog = async (torrent: Torrent) => {
+  detailActiveTab.value = 'basic'
   showDetailDialog.value = true
   detailLoading.value = true
   try {
@@ -1306,15 +1507,6 @@ const saveDetailFileSelections = async () => {
   }
 }
 
-const initializeDetailLimitForm = () => {
-  detailLimitForm.value = {
-    downloadLimited: detailTorrent.value?.downloadLimited ?? false,
-    downloadLimit: detailTorrent.value?.downloadLimit ?? 0,
-    uploadLimited: detailTorrent.value?.uploadLimited ?? false,
-    uploadLimit: detailTorrent.value?.uploadLimit ?? 0,
-  }
-}
-
 const buildLimitPayload = (form: LimitFormState) => {
   const payload: Record<string, any> = {
     downloadLimited: form.downloadLimited,
@@ -1329,22 +1521,11 @@ const buildLimitPayload = (form: LimitFormState) => {
   return payload
 }
 
-const saveDetailLimit = async () => {
-  if (!detailTorrent.value) return
-  detailLimitSaving.value = true
-  try {
-    await api.setTorrents([detailTorrent.value.id], buildLimitPayload(detailLimitForm.value))
-    ElMessage.success('限速已更新')
-    await refreshDetailData()
-  } catch (error: any) {
-    ElMessage.error(`更新失败: ${error.message}`)
-  } finally {
-    detailLimitSaving.value = false
-  }
-}
-
 const openBatchLimitDialog = () => {
   if (!selectedIds.value.length) return
+  limitDialogMode.value = 'batch'
+  limitDialogTargetName.value = ''
+  limitDialogLoading.value = false
   limitDialogIds.value = [...selectedIds.value]
   resetLimitDialogForm()
   limitDialogVisible.value = true
@@ -1354,7 +1535,38 @@ const resetLimitDialogForm = () => {
   limitDialogForm.value = createEmptyLimitForm()
 }
 
-const submitBatchLimit = async () => {
+const applyLimitFormFromTorrent = (torrent?: Torrent | null) => {
+  if (!torrent) {
+    resetLimitDialogForm()
+    return
+  }
+  limitDialogForm.value = {
+    downloadLimited: torrent.downloadLimited ?? false,
+    downloadLimit: torrent.downloadLimit ?? 0,
+    uploadLimited: torrent.uploadLimited ?? false,
+    uploadLimit: torrent.uploadLimit ?? 0,
+  }
+}
+
+const openSingleLimitDialog = async (torrent: Torrent) => {
+  limitDialogMode.value = 'single'
+  limitDialogTargetName.value = `当前种子：${torrent.name}`
+  limitDialogIds.value = [torrent.id]
+  resetLimitDialogForm()
+  limitDialogVisible.value = true
+  limitDialogLoading.value = true
+  try {
+    const detail = await fetchTorrentDetail(torrent.id)
+    applyLimitFormFromTorrent(detail || torrent)
+  } catch (error) {
+    console.warn('加载限速信息失败', error)
+    applyLimitFormFromTorrent(torrent)
+  } finally {
+    limitDialogLoading.value = false
+  }
+}
+
+const submitLimitSettings = async () => {
   if (!limitDialogIds.value.length) {
     limitDialogVisible.value = false
     return
@@ -1374,7 +1586,7 @@ const submitBatchLimit = async () => {
 
 const resetDetailInteractions = () => {
   detailFileSelections.value = {}
-  detailLimitForm.value = createEmptyLimitForm()
+  detailActiveTab.value = 'basic'
 }
 
 // 文件选择
@@ -1473,6 +1685,7 @@ const formatSpeed = (bytes: number): string => {
 }
 
 onMounted(() => {
+  loadColumnWidths()
   loadTorrents()
   startAutoRefresh()
   window.addEventListener('click', hideContextMenu)
@@ -1495,7 +1708,7 @@ onBeforeUnmount(() => {
 
 .toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -1503,6 +1716,13 @@ onBeforeUnmount(() => {
 .actions-group {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+.filter-toggle {
+  align-self: flex-start;
+  flex: 0 0 auto;
 }
 
 .filter-submenu {
@@ -1527,6 +1747,10 @@ onBeforeUnmount(() => {
   font-size: 13px;
   color: #909399;
   white-space: nowrap;
+}
+
+.filter-submenu.is-mobile {
+  width: 100%;
 }
 
 .search-section {
@@ -1577,10 +1801,21 @@ onBeforeUnmount(() => {
 
 .table-container {
   flex: 1;
-  overflow: auto;
   margin-top: 20px;
   display: flex;
   flex-direction: column;
+}
+
+.table-scroll {
+  flex: 1;
+  overflow: auto;
+  border-radius: 6px;
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll :deep(.el-table) {
+  min-width: 1100px;
 }
 
 .pagination {
@@ -1598,6 +1833,19 @@ onBeforeUnmount(() => {
   max-height: 60vh;
   overflow-y: auto;
   padding-right: 8px;
+}
+
+.detail-tabs :deep(.el-tabs__header) {
+  margin-bottom: 12px;
+}
+
+.detail-tabs :deep(.el-tabs__content) {
+  padding-bottom: 8px;
+}
+
+.files-tab,
+.tracker-tab {
+  min-height: 220px;
 }
 
 .detail-grid {
@@ -1655,10 +1903,6 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.limit-form {
-  margin-top: 12px;
-}
-
 .limit-row {
   display: flex;
   align-items: center;
@@ -1669,21 +1913,10 @@ onBeforeUnmount(() => {
   color: #909399;
 }
 
-.detail-actions {
-  margin-top: 8px;
-  text-align: right;
-}
-
 .dialog-subtitle {
   margin: 0 0 12px;
   font-size: 13px;
   color: #909399;
-}
-
-.section-title {
-  margin: 20px 0 10px;
-  font-size: 15px;
-  font-weight: 600;
 }
 
 .table-placeholder {
@@ -1720,5 +1953,128 @@ onBeforeUnmount(() => {
 .delete-message {
   margin-bottom: 12px;
   color: #606266;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@media (max-width: 1200px) {
+  .table-scroll :deep(.el-table) {
+    min-width: 960px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions-group {
+    width: 100%;
+  }
+
+  .filter-submenu {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .submenu-section {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .search-section {
+    min-width: unset;
+  }
+
+  .update-info {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .table-scroll {
+    border: 1px solid #ebeef5;
+  }
+}
+
+@media (max-width: 900px) {
+  .table-scroll :deep(.el-table) {
+    min-width: 780px;
+  }
+}
+
+@media (max-width: 768px) {
+  .home-view {
+    gap: 10px;
+  }
+
+  .submenu-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .search-section {
+    width: 100%;
+  }
+
+  .actions-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .actions-group :deep(.el-button) {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .filter-toggle {
+    width: 100%;
+  }
+
+  .table-container {
+    margin-top: 12px;
+  }
+
+  .table-scroll :deep(.el-table) {
+    min-width: 720px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .files-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .files-actions-buttons {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .files-actions-buttons :deep(.el-button) {
+    flex: 1;
+  }
+
+  .detail-dialog :deep(.el-dialog__body) {
+    max-height: none;
+    padding-right: 0;
+  }
+
+  .detail-body {
+    max-height: 60vh;
+  }
 }
 </style>

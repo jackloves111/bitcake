@@ -482,6 +482,11 @@ onMounted(async () => {
   gap: 12px;
   font-size: 14px;
   color: #909399;
+  flex-wrap: wrap;
+}
+
+.header-actions span {
+  white-space: nowrap;
 }
 
 .summary-row {
@@ -553,12 +558,45 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
+  .stats-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions span {
+    white-space: normal;
+  }
+
+  .header-actions :deep(.el-button) {
+    width: 100%;
+  }
+
+  .summary-card {
+    min-height: 120px;
+  }
+
   .chart-card {
     min-height: 300px;
   }
 
   .chart {
     height: 260px;
+  }
+
+  .stats-view :deep(.el-row) {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .stats-view :deep(.el-row) > .el-col {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 }
 </style>
