@@ -52,29 +52,13 @@
         class="filter-submenu"
         :class="{ 'is-mobile': isMobile }"
       >
-        <div class="submenu-section">
-          <span class="submenu-label">状态：</span>
-          <el-button-group>
-            <el-button
-              v-for="status in statusOptions"
-              :key="status.value"
-              size="small"
-              :type="statusFilter === status.value ? 'primary' : 'default'"
-              @click="statusFilter = status.value"
-            >
-              {{ status.label }}
-            </el-button>
-          </el-button-group>
-        </div>
-        <div class="submenu-section tracker-section">
-          <span class="submenu-label">Tracker：</span>
+        <div class="submenu-section filter-controls">
           <el-select
             v-model="trackerFilter"
             placeholder="选择 Tracker"
             clearable
             filterable
-            size="small"
-            class="tracker-select"
+            class="filter-select"
             @clear="trackerFilter = ''"
           >
             <el-option label="全部 Tracker" value="" />
@@ -85,13 +69,12 @@
               :value="tracker.value"
             />
           </el-select>
-        </div>
-        <div class="submenu-section search-section">
           <el-input
             v-model="searchKeyword"
             placeholder="搜索种子..."
             :prefix-icon="Search"
             clearable
+            class="filter-input"
           />
         </div>
         <div class="submenu-section update-info" v-if="lastFetchedAt">
@@ -659,7 +642,6 @@ import {
   VideoPause,
   Delete,
   Upload,
-  Filter,
 } from '@element-plus/icons-vue'
 import * as api from '@/api/torrents'
 import type { AddTorrentPayload } from '@/api/torrents'
@@ -667,6 +649,8 @@ import type { Torrent, TorrentStatus } from '@/types/transmission'
 import { TorrentStatusEnum } from '@/types/transmission'
 import { getTrackerHost } from '@/utils/torrent'
 import { useMediaQuery } from '@/utils/useMediaQuery'
+import { useFilterStore } from '@/stores/filter'
+import { storeToRefs } from 'pinia'
 
 const REFRESH_INTERVAL = 2000
 const COLUMN_WIDTH_STORAGE_KEY = 'tv_table_column_widths'
@@ -694,7 +678,9 @@ const DETAIL_FIELDS = [
   'uploadLimited',
   'peers',
 ]
-type StatusFilter = 'all' | 'error' | TorrentStatus
+
+const filterStore = useFilterStore()
+const { statusFilter, trackerFilter } = storeToRefs(filterStore)
 
 interface LimitFormState {
   downloadLimited: boolean
@@ -722,33 +708,21 @@ const statusTextMap: Record<TorrentStatus, string> = {
 
 const defaultColumnWidths: Record<string, number> = {
   name: 300,
-  status: 110,
-  percentDone: 130,
-  totalSize: 130,
-  uploadRatio: 60,
+  status: 100,
+  percentDone: 100,
+  totalSize: 90,
+  uploadRatio: 90,
   popularity: 90,
-  defaultTracker: 140,
-  peersDownloading: 120,
-  peersUploading: 120,
-  rateDownload: 130,
-  rateUpload: 130,
-  uploadedEver: 140,
-  addedDate: 170,
-  activityDate: 170,
-  labels: 190,
+  defaultTracker: 160,
+  peersDownloading: 100,
+  peersUploading: 100,
+  rateDownload: 100,
+  rateUpload: 100,
+  uploadedEver: 100,
+  addedDate: 150,
+  activityDate: 150,
+  labels: 100,
 }
-
-const statusOptions: { label: string; value: StatusFilter }[] = [
-  { label: '全部', value: 'all' },
-  { label: '错误', value: 'error' },
-  { label: statusTextMap[TorrentStatusEnum.STOPPED], value: TorrentStatusEnum.STOPPED },
-  { label: statusTextMap[TorrentStatusEnum.CHECK_WAIT], value: TorrentStatusEnum.CHECK_WAIT },
-  { label: statusTextMap[TorrentStatusEnum.CHECK], value: TorrentStatusEnum.CHECK },
-  { label: statusTextMap[TorrentStatusEnum.DOWNLOAD_WAIT], value: TorrentStatusEnum.DOWNLOAD_WAIT },
-  { label: statusTextMap[TorrentStatusEnum.DOWNLOAD], value: TorrentStatusEnum.DOWNLOAD },
-  { label: statusTextMap[TorrentStatusEnum.SEED_WAIT], value: TorrentStatusEnum.SEED_WAIT },
-  { label: statusTextMap[TorrentStatusEnum.SEED], value: TorrentStatusEnum.SEED },
-]
 
 let refreshTimer: number | undefined
 
@@ -763,8 +737,6 @@ const addForm = ref({
   downloadDir: '',
   paused: false,
 })
-const statusFilter = ref<StatusFilter>('all')
-const trackerFilter = ref('')
 const selectedTorrents = ref<Torrent[]>([])
 const selectedIdsState = ref<number[]>([])
 const showLocationDialog = ref(false)
@@ -963,7 +935,9 @@ const filteredTorrents = computed(() => {
         ? true
         : statusFilter.value === 'error'
           ? isTorrentError(torrent)
-          : torrent.status === statusFilter.value
+          : statusFilter.value === 'queued'
+            ? [TorrentStatusEnum.CHECK_WAIT, TorrentStatusEnum.DOWNLOAD_WAIT, TorrentStatusEnum.SEED_WAIT].includes(torrent.status)
+            : torrent.status === statusFilter.value
     const matchesTracker =
       !trackerFilter.value ||
       (torrent.trackers ?? []).some(
@@ -1809,39 +1783,44 @@ onBeforeUnmount(() => {
 .submenu-section {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.submenu-label {
-  font-size: 13px;
-  color: #909399;
-  white-space: nowrap;
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.tracker-section {
-  flex-shrink: 0;
+.filter-select {
+  width: 200px;
 }
 
-.tracker-select {
-  min-width: 200px;
-  max-width: 300px;
-}
-
-.tracker-select :deep(.el-select-dropdown) {
+.filter-select :deep(.el-select-dropdown) {
   max-height: 300px;
 }
 
-.tracker-select :deep(.el-select-dropdown__list) {
+.filter-select :deep(.el-select-dropdown__list) {
   max-height: 280px;
+}
+
+.filter-input {
+  width: 240px;
 }
 
 .filter-submenu.is-mobile {
   width: 100%;
 }
 
-.search-section {
-  flex: 1 1 240px;
-  min-width: 220px;
+.filter-submenu.is-mobile .filter-controls {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.filter-submenu.is-mobile .filter-select,
+.filter-submenu.is-mobile .filter-input {
+  width: 100%;
 }
 
 .update-info {
@@ -1916,6 +1895,15 @@ onBeforeUnmount(() => {
   padding-left: 8px;
   padding-right: 8px;
   line-height: 1.4;
+}
+
+.table-scroll :deep(.el-progress) {
+  width: 100%;
+}
+
+.table-scroll :deep(.el-progress__text) {
+  min-width: 36px;
+  font-size: 12px !important;
 }
 
 .pagination {
@@ -2064,13 +2052,8 @@ onBeforeUnmount(() => {
     align-items: stretch;
   }
 
-  .submenu-section {
+  .filter-controls {
     width: 100%;
-    justify-content: space-between;
-  }
-
-  .search-section {
-    min-width: unset;
   }
 
   .update-info {
@@ -2092,16 +2075,6 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .home-view {
     gap: 10px;
-  }
-
-  .submenu-section {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  .search-section {
-    width: 100%;
   }
 
   .actions-group {

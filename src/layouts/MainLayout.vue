@@ -11,11 +11,9 @@
           aria-label="展开导航菜单"
           @click="isMenuOpen = true"
         />
-        <h1 class="title">{{ backendLabel }} Vue</h1>
-        <span class="version-badge">v{{ frontendVersion }}</span>
+        <h1 class="title">{{ backendLabel }} {{ versionText }}</h1>
       </div>
       <div class="header-right">
-        <el-button :icon="Setting" circle plain @click="$router.push('/settings')" />
         <el-button :icon="SwitchButton" circle plain @click="handleLogout" title="退出登录" />
       </div>
     </el-header>
@@ -23,7 +21,20 @@
     <el-container class="content-container">
       <el-aside v-if="!isMobile" width="240px" class="aside">
         <div class="aside-content">
-          <el-menu :default-active="$route.path" router @select="handleMenuSelect">
+          <el-menu :default-active="activeMenuItem" @select="handleMenuSelect">
+            <el-sub-menu index="torrents">
+              <template #title>
+                <el-icon><List /></el-icon>
+                <span>种子列表</span>
+              </template>
+              <el-menu-item
+                v-for="status in statusOptions"
+                :key="status.value"
+                :index="`status:${status.value}`"
+              >
+                {{ status.label }}
+              </el-menu-item>
+            </el-sub-menu>
             <el-menu-item
               v-for="item in navigationItems"
               :key="item.index"
@@ -54,7 +65,20 @@
         <span class="drawer-version">v{{ frontendVersion }}</span>
       </div>
       <div class="drawer-body">
-        <el-menu :default-active="$route.path" router @select="handleMenuSelect">
+        <el-menu :default-active="activeMenuItem" @select="handleMenuSelect">
+          <el-sub-menu index="torrents">
+            <template #title>
+              <el-icon><List /></el-icon>
+              <span>种子列表</span>
+            </template>
+            <el-menu-item
+              v-for="status in statusOptions"
+              :key="status.value"
+              :index="`status:${status.value}`"
+            >
+              {{ status.label }}
+            </el-menu-item>
+          </el-sub-menu>
           <el-menu-item
             v-for="item in navigationItems"
             :key="item.index"
@@ -72,25 +96,51 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Setting, List, TrendCharts, Menu, SwitchButton } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useSystemStatusStore } from '@/stores/systemStatus'
 import { useConnectionStore } from '@/stores/connection'
+import { useFilterStore, type StatusFilter } from '@/stores/filter'
 import { useMediaQuery } from '@/utils/useMediaQuery'
 import SidebarStatus from './components/SidebarStatus.vue'
 import { torrentBackendName } from '@/config/torrentClient'
+import { TorrentStatusEnum } from '@/types/transmission'
 
 const router = useRouter()
+const route = useRoute()
 const systemStatusStore = useSystemStatusStore()
 const connectionStore = useConnectionStore()
+const filterStore = useFilterStore()
 const backendLabel = torrentBackendName
 const { sessionStats, freeSpaceBytes, sessionConfig, lastUpdated } = storeToRefs(systemStatusStore)
+const { statusFilter } = storeToRefs(filterStore)
 const isMobile = useMediaQuery('(max-width: 768px)')
 const isMenuOpen = ref(false)
+const activeMenuItem = ref('/')
+
+const statusTextMap = {
+  [TorrentStatusEnum.STOPPED]: '已停止',
+  [TorrentStatusEnum.CHECK_WAIT]: '等待校验',
+  [TorrentStatusEnum.CHECK]: '校验中',
+  [TorrentStatusEnum.DOWNLOAD_WAIT]: '等待下载',
+  [TorrentStatusEnum.DOWNLOAD]: '下载中',
+  [TorrentStatusEnum.SEED_WAIT]: '等待做种',
+  [TorrentStatusEnum.SEED]: '做种中',
+}
+
+const statusOptions = [
+  { label: '全部', value: 'all' as StatusFilter },
+  { label: '错误', value: 'error' as StatusFilter },
+  { label: statusTextMap[TorrentStatusEnum.STOPPED], value: TorrentStatusEnum.STOPPED as StatusFilter },
+  { label: '队列中', value: 'queued' as StatusFilter },
+  { label: statusTextMap[TorrentStatusEnum.CHECK], value: TorrentStatusEnum.CHECK as StatusFilter },
+  { label: statusTextMap[TorrentStatusEnum.DOWNLOAD], value: TorrentStatusEnum.DOWNLOAD as StatusFilter },
+  { label: statusTextMap[TorrentStatusEnum.SEED], value: TorrentStatusEnum.SEED as StatusFilter },
+]
+
 const navigationItems = [
-  { index: '/', label: '种子列表', icon: List },
   { index: '/settings', label: '设置', icon: Setting },
   { index: '/stats', label: '数据统计', icon: TrendCharts },
 ]
@@ -100,25 +150,27 @@ const downloadSpeedText = computed(() => formatSpeed(sessionStats.value?.downloa
 const freeSpaceText = computed(() =>
   freeSpaceBytes.value !== null ? formatBytes(freeSpaceBytes.value) : '未知'
 )
-const versionText = computed(() => sessionConfig.value?.version || '未知')
+const versionText = computed(() => sessionConfig.value?.version || '')
 const lastUpdatedText = computed(() => lastUpdated.value || '—')
 const frontendVersion = __APP_VERSION__ || 'dev'
 const statusMetrics = computed(() => [
   { label: '上传速度', value: uploadSpeedText.value },
   { label: '下载速度', value: downloadSpeedText.value },
   { label: '可用空间', value: freeSpaceText.value },
-  { label: '版本', value: versionText.value },
-  { label: '更新', value: lastUpdatedText.value },
-  { label: '前端', value: frontendVersion },
+  { label: '更新时间', value: lastUpdatedText.value },
+  { label: '前端版本', value: `v${frontendVersion}` },
 ])
 
-onMounted(() => {
-  systemStatusStore.start()
-})
+// 根据当前路由和过滤器状态计算当前活动的菜单项
+const updateActiveMenuItem = () => {
+  if (route.path === '/') {
+    activeMenuItem.value = `status:${statusFilter.value}`
+  } else {
+    activeMenuItem.value = route.path
+  }
+}
 
-onBeforeUnmount(() => {
-  systemStatusStore.stop()
-})
+watch([() => route.path, statusFilter], updateActiveMenuItem)
 
 watch(isMobile, (mobile) => {
   if (!mobile) {
@@ -126,11 +178,34 @@ watch(isMobile, (mobile) => {
   }
 })
 
-const handleMenuSelect = () => {
+const handleMenuSelect = (index: string) => {
+  // 处理状态过滤
+  if (index.startsWith('status:')) {
+    const status = index.replace('status:', '') as StatusFilter
+    filterStore.setStatusFilter(status)
+    filterStore.setTrackerFilter('')
+    if (route.path !== '/') {
+      router.push('/')
+    }
+  }
+  // 处理普通路由
+  else {
+    router.push(index)
+  }
+
   if (isMobile.value) {
     isMenuOpen.value = false
   }
 }
+
+onMounted(() => {
+  systemStatusStore.start()
+  updateActiveMenuItem()
+})
+
+onBeforeUnmount(() => {
+  systemStatusStore.stop()
+})
 
 const handleLogout = async () => {
   try {
@@ -198,15 +273,6 @@ const formatSpeed = (bytes: number): string => {
   margin: 0;
   font-size: 20px;
   font-weight: 500;
-}
-
-.version-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  font-size: 12px;
 }
 
 .header-right {

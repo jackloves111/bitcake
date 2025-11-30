@@ -1,14 +1,11 @@
 <template>
   <div class="sidebar-status">
-    <p class="sidebar-status-title">系统状态</p>
-    <div class="sidebar-status-chip">
-      <span
-        v-for="metric in metrics"
-        :key="metric.label"
-        class="chip-item"
-      >
-        <strong>{{ metric.label }}：</strong>{{ metric.value }}
-      </span>
+    <div class="status-header">系统状态</div>
+    <div class="status-list">
+      <div v-for="metric in metrics" :key="metric.label" class="status-item">
+        <span class="status-label">{{ metric.label }}</span>
+        <span class="status-value">{{ metric.value }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -27,41 +24,47 @@ defineProps<{
 <style scoped>
 .sidebar-status {
   margin-top: auto;
-  padding: 16px 12px 20px;
-}
-
-.sidebar-status-title {
-  margin: 0 0 10px;
-  font-size: 13px;
-  color: #606266;
-  font-weight: 600;
-}
-
-.sidebar-status-chip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  width: 100%;
-}
-
-.chip-item {
-  font-size: 12px;
-  line-height: 1.4;
+  padding: 12px;
   background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 999px;
-  padding: 6px 10px;
+  border-top: 1px solid #ebeef5;
+}
+
+.status-header {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.status-label {
   color: #606266;
 }
 
-.chip-item strong {
-  font-weight: 600;
+.status-value {
   color: #303133;
+  font-weight: 500;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
 }
 
 @media (max-width: 768px) {
   .sidebar-status {
-    padding: 16px 20px 10px;
+    padding: 12px 16px;
   }
 }
 </style>
