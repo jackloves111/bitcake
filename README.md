@@ -14,6 +14,8 @@ A modern, unified web interface for Transmission and qBittorrent.
 - 🔧 紧凑的布局设计，信息密度更高
 - 🌍 支持中文界面
 
+
+
 ## 🚀 部署
 
 ### 使用预构建容器
@@ -111,6 +113,14 @@ environment:
 - [ECharts](https://echarts.apache.org/) - 数据可视化图表库
 - [Transmission](https://transmissionbt.com/) - 轻量级 BT 客户端
 - [qBittorrent](https://www.qbittorrent.org/) - 开源 BT 客户端
+
+
+## 预览
+![首页](preview/index.png)
+![数据统计](preview/stat1.png)
+![统计](preview/stat2.png)
+
+
 
 ## 📄 License
 
