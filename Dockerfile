@@ -1,5 +1,5 @@
 # 使用官方 Transmission 镜像作为基础
-FROM linuxserver/transmission:latest
+FROM linuxserver/transmission:4.0.5
 
 # 维护者信息
 LABEL maintainer="bitcake"
