@@ -5,16 +5,12 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useConnectionStore } from '@/stores/connection'
-import { useThemeStore } from '@/stores/theme'
 import { configureConnection } from '@/api/torrents'
+// 移除了主题相关的导入和初始化
 
 const connectionStore = useConnectionStore()
-const themeStore = useThemeStore()
 
 onMounted(() => {
-  // 初始化主题
-  themeStore.initTheme()
-  
   // 加载已保存的配置和连接状态
   connectionStore.loadConfig()
 

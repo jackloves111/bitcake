@@ -780,7 +780,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, provide } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { TableInstance, TableColumnCtx } from 'element-plus'
 import dayjs from 'dayjs'
@@ -801,7 +801,7 @@ import { TorrentStatusEnum } from '@/types/transmission'
 import { getTrackerDisplayName, matchesTrackerFilter } from '@/utils/torrent'
 import { getIPGeolocation } from '@/utils/ipGeolocation'
 import { useMediaQuery } from '@/utils/useMediaQuery'
-import { useFilterStore, type StatusFilter } from '@/stores/filter'
+import { useFilterStore } from '@/stores/filter'
 import { useSystemStatusStore } from '@/stores/systemStatus'
 import { storeToRefs } from 'pinia'
 

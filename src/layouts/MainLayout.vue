@@ -113,19 +113,16 @@ import { ElMessageBox } from 'element-plus'
 import { useSystemStatusStore } from '@/stores/systemStatus'
 import { useConnectionStore } from '@/stores/connection'
 import { useFilterStore, type StatusFilter } from '@/stores/filter'
-import { useThemeStore, type Theme } from '@/stores/theme'
 import { useMediaQuery } from '@/utils/useMediaQuery'
 import SidebarStatus from './components/SidebarStatus.vue'
 import { torrentBackendName } from '@/config/torrentClient'
 import { TorrentStatusEnum } from '@/types/transmission'
-import type { Torrent } from '@/types/transmission'
 
 const router = useRouter()
 const route = useRoute()
 const systemStatusStore = useSystemStatusStore()
 const connectionStore = useConnectionStore()
 const filterStore = useFilterStore()
-const themeStore = useThemeStore()
 const { torrentCounts } = storeToRefs(systemStatusStore)
 const backendLabel = torrentBackendName
 const { sessionStats, freeSpaceBytes, sessionConfig, lastUpdated } = storeToRefs(systemStatusStore)
@@ -144,11 +141,11 @@ const statusTextMap = {
   [TorrentStatusEnum.SEED]: '做种中',
 }
 
-interface StatusOption {
-  label: string
-  value: StatusFilter
-  showCount?: boolean
-}
+// interface StatusOption {
+//   label: string
+//   value: StatusFilter
+//   showCount?: boolean
+// }
 
 const statusOptions = [
   { label: '全部', value: 'all' as StatusFilter },
@@ -188,14 +185,10 @@ const navigationItems = [
   { index: '/stats', label: '数据统计', icon: TrendCharts },
 ]
 
-const themeOptions = Object.entries(themeStore.themes).map(([key, theme]) => ({
-  label: theme.name,
-  value: key
-}))
-
-const handleThemeChange = (theme: Theme) => {
-  themeStore.setTheme(theme)
-}
+// const themeOptions = Object.entries(themeStore.themes).map(([key, theme]) => ({
+//   label: theme.name,
+//   value: key
+// }))
 
 const uploadSpeedText = computed(() => formatSpeed(sessionStats.value?.uploadSpeed || 0))
 const downloadSpeedText = computed(() => formatSpeed(sessionStats.value?.downloadSpeed || 0))
@@ -252,7 +245,6 @@ const handleMenuSelect = (index: string) => {
 
 onMounted(() => {
   systemStatusStore.start()
-  themeStore.initTheme()
   updateActiveMenuItem()
 })
 
