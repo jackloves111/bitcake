@@ -61,12 +61,13 @@
             placeholder="选择 Tracker"
             clearable
             filterable
+            :filter-method="filterTrackerOptions"
             class="filter-select"
             @clear="trackerFilter = ''"
           >
             <el-option label="全部 Tracker" value="" />
             <el-option
-              v-for="tracker in trackerOptions"
+              v-for="tracker in filteredTrackerOptions"
               :key="tracker.value"
               :label="tracker.label"
               :value="tracker.value"
@@ -118,6 +119,7 @@
           @selection-change="handleSelectionChange"
           @sort-change="handleSortChange"
           @row-contextmenu="handleRowContextMenu"
+          @row-dblclick="handleRowDoubleClick"
           @header-dragend="handleColumnResize"
         >
           <el-table-column
@@ -216,19 +218,6 @@
           >
             <template #default="{ row }">
               {{ formatSpeed(row.rateUpload) }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            v-if="!isCompactTable"
-            column-key="popularity"
-            prop="popularity"
-            label="人气值"
-            :width="getColumnWidth('popularity', 120)"
-            :min-width="100"
-            sortable="custom"
-          >
-            <template #default="{ row }">
-              {{ formatPopularity(row.popularity) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -390,6 +379,7 @@
         </el-form-item>
         <el-form-item v-else label="种子文件">
           <el-upload
+            class="torrent-file-upload"
             :auto-upload="false"
             :limit="1"
             accept=".torrent"
@@ -416,8 +406,8 @@
         <el-form-item label="新的保存目录">
           <el-input v-model="locationForm.path" placeholder="/data/downloads" />
         </el-form-item>
-        <el-form-item label="数据文件处理">
-          <el-switch v-model="locationForm.move" active-text="同时移动文件" inactive-text="仅改路径记录" />
+        <el-form-item label="">
+          <el-checkbox v-model="locationForm.move">同时移动文件</el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -457,7 +447,7 @@
             <el-tabs v-model="detailActiveTab" class="detail-tabs" type="border-card">
               <el-tab-pane label="基础信息" name="basic">
                 <el-descriptions :column="2" size="small" border>
-                  <el-descriptions-item label="名称" :span="2">
+                  <el-descriptions-item label="名称" :span="2" class-name="torrent-name-item">
                     {{ detailTorrent.name }}
                   </el-descriptions-item>
                   <el-descriptions-item label="状态">
@@ -496,7 +486,7 @@
                     <el-tag size="small">{{ detailTorrent.category }}</el-tag>
                   </el-descriptions-item>
                   <el-descriptions-item v-if="detailTorrent.comment" label="描述" :span="2">
-                    {{ detailTorrent.comment }}
+                    <span v-html="formatCommentWithLinks(detailTorrent.comment)"></span>
                   </el-descriptions-item>
                   <el-descriptions-item v-if="detailTorrent.errorString" label="错误信息" :span="2">
                     <el-text type="danger">{{ detailTorrent.errorString }}</el-text>
@@ -533,7 +523,7 @@
                         <el-checkbox v-model="detailFileSelections[row.index]" />
                       </template>
                     </el-table-column>
-                    <el-table-column prop="name" label="文件名" min-width="200" show-overflow-tooltip />
+                    <el-table-column prop="name" label="文件名" min-width="300" show-overflow-tooltip />
                     <el-table-column label="大小" width="100" align="right">
                       <template #default="{ row }">
                         {{ formatBytes(row.length) }}
@@ -798,7 +788,7 @@ import * as api from '@/api/torrents'
 import type { AddTorrentPayload } from '@/api/torrents'
 import type { Torrent, TorrentStatus } from '@/types/transmission'
 import { TorrentStatusEnum } from '@/types/transmission'
-import { getTrackerDisplayName, matchesTrackerFilter } from '@/utils/torrent'
+import { getTrackerDisplayName, getTrackerHost, matchesTrackerFilter } from '@/utils/torrent'
 import { getIPGeolocation } from '@/utils/ipGeolocation'
 import { useMediaQuery } from '@/utils/useMediaQuery'
 import { useFilterStore } from '@/stores/filter'
@@ -876,7 +866,6 @@ const defaultColumnWidths: Record<string, number> = {
   percentDone: 100,
   totalSize: 90,
   uploadRatio: 90,
-  popularity: 90,
   defaultTracker: 160,
   peersDownloading: 100,
   peersUploading: 100,
@@ -893,6 +882,7 @@ let refreshTimer: number | undefined
 const loading = ref(false)
 const torrents = ref<Torrent[]>([])
 const searchKeyword = ref('')
+const trackerSearchKeyword = ref('')
 const showAddDialog = ref(false)
 const addForm = ref({
   type: 'magnet',
@@ -1007,8 +997,8 @@ const showMobileFilters = ref(!isMobile.value)
 const columnWidths = ref<Record<string, number>>({ ...defaultColumnWidths })
 const createDialogWidth = (desktopWidth: string, mobileWidth = '94vw') =>
   computed(() => (isMobile.value ? mobileWidth : desktopWidth))
-const defaultDialogWidth = createDialogWidth('500px')
-const detailDialogWidth = createDialogWidth('720px', '96vw')
+const defaultDialogWidth = createDialogWidth('600px')
+const detailDialogWidth = createDialogWidth('900px', '96vw')
 const limitDialogWidth = createDialogWidth('480px')
 const removeDialogWidth = createDialogWidth('420px', '90vw')
 
@@ -1138,13 +1128,6 @@ const formatRatio = (ratio: number): string => {
   return (ratio ?? 0).toFixed(2)
 }
 
-const formatPopularity = (popularity?: number): string => {
-  if (popularity === undefined || popularity === null) return '—'
-  // 乘以100并取整
-  const value = Math.round(popularity * 100)
-  return value.toString()
-}
-
 const formatLastActivity = (timestamp?: number): string => {
   if (!timestamp) return '—'
   return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm')
@@ -1212,14 +1195,14 @@ const getSortValue = (torrent: Torrent, prop?: string) => {
       return torrent.totalSize
     case 'uploadRatio':
       return torrent.uploadRatio
-    case 'popularity':
-      return torrent.popularity ?? 0
     case 'defaultTracker':
       return getDefaultTracker(torrent)
     case 'peersDownloading':
-      return getPeersDownloading(torrent)
+      // 按照 tracker 报告的种子总数排序
+      return getTrackerPeerCounts(torrent).seeders
     case 'peersUploading':
-      return getPeersUploading(torrent)
+      // 按照 tracker 报告的用户总数排序
+      return getTrackerPeerCounts(torrent).leechers
     case 'rateDownload':
       return torrent.rateDownload
     case 'rateUpload':
@@ -1257,17 +1240,50 @@ const paginatedTorrents = computed(() => {
 })
 
 const trackerOptions = computed(() => {
-  const trackerMap = new Map<string, string>() // displayName -> filterValue
+  interface TrackerOption {
+    label: string
+    value: string
+    displayName: string
+    host: string
+  }
+  const trackerMap = new Map<string, TrackerOption>() // displayName -> option
   torrents.value.forEach((torrent) => {
     torrent.trackers?.forEach((tracker) => {
       const displayName = getTrackerDisplayName(tracker.announce)
-      trackerMap.set(displayName, displayName)
+      const host = getTrackerHost(tracker.announce)
+
+      if (!trackerMap.has(displayName)) {
+        // 如果 displayName 和 host 不同，说明有中文映射，显示格式为 "中文名 (host)"
+        const label = displayName !== host ? `${displayName} (${host})` : host
+        trackerMap.set(displayName, {
+          label,
+          value: displayName,
+          displayName,
+          host
+        })
+      }
     })
   })
-  return Array.from(trackerMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([displayName]) => ({ label: displayName, value: displayName }))
+  return Array.from(trackerMap.values())
+    .sort((a, b) => a.label.localeCompare(b.label))
 })
+
+const filteredTrackerOptions = computed(() => {
+  if (!trackerSearchKeyword.value) {
+    return trackerOptions.value
+  }
+  const keyword = trackerSearchKeyword.value.toLowerCase()
+  return trackerOptions.value.filter(option => {
+    // 同时搜索中文名、host 和 label
+    return option.displayName.toLowerCase().includes(keyword) ||
+           option.host.toLowerCase().includes(keyword) ||
+           option.label.toLowerCase().includes(keyword)
+  })
+})
+
+const filterTrackerOptions = (query: string) => {
+  trackerSearchKeyword.value = query
+}
 
 const categoryOptions = computed(() => {
   const categories = new Set<string>()
@@ -1432,6 +1448,10 @@ const handleRowContextMenu = (row: Torrent, _column: any, event: MouseEvent) => 
     torrent: row,
   }
   nextTick(adjustContextMenuPosition)
+}
+
+const handleRowDoubleClick = (row: Torrent) => {
+  openDetailDialog(row)
 }
 
 const hideContextMenu = () => {
@@ -2216,6 +2236,25 @@ const formatSpeed = (bytes: number): string => {
   return `${formatBytes(bytes)}/s`
 }
 
+// 格式化描述字段，将URL转换为超链接
+const formatCommentWithLinks = (comment: string): string => {
+  if (!comment) return ''
+  // URL 正则表达式，匹配 http:// 或 https:// 开头的链接
+  const urlRegex = /(https?:\/\/[^\s<>"']+)/g
+  // 转义 HTML 特殊字符
+  const escapeHtml = (text: string) => {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML
+  }
+  // 先转义整个文本
+  let escapedComment = escapeHtml(comment)
+  // 然后将 URL 替换为超链接
+  return escapedComment.replace(urlRegex, (url) => {
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #409eff; text-decoration: underline;">${url}</a>`
+  })
+}
+
 onMounted(() => {
   loadColumnWidths()
   loadTorrents()
@@ -2434,6 +2473,12 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
+.detail-tabs :deep(.torrent-name-item .el-descriptions__cell-content) {
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.6;
+}
+
 .hash-value {
   font-family: monospace;
   font-size: 12px;
@@ -2541,6 +2586,27 @@ onBeforeUnmount(() => {
 .delete-message {
   margin-bottom: 12px;
   color: #606266;
+}
+
+.torrent-file-upload {
+  width: 100%;
+}
+
+.torrent-file-upload :deep(.el-upload-list) {
+  max-width: 100%;
+}
+
+.torrent-file-upload :deep(.el-upload-list__item) {
+  max-width: 100%;
+}
+
+.torrent-file-upload :deep(.el-upload-list__item-name) {
+  max-width: calc(100% - 80px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .fade-enter-active,
