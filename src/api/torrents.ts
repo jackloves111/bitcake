@@ -95,6 +95,10 @@ const transmissionService: TorrentService = {
       'totalSize',
       'percentDone',
       'recheckProgress',
+      'haveValid',
+      'haveUnchecked',
+      'sizeWhenDone',
+      'leftUntilDone',
       'rateDownload',
       'rateUpload',
       'uploadRatio',
@@ -135,6 +139,16 @@ const transmissionService: TorrentService = {
             torrent.addedDate,
             torrent.activityDate
           )
+
+          // 修正进度计算：包括已下载但未验证的数据
+          // percentDone 应该反映实际下载进度，而不仅仅是已验证的数据
+          if (torrent.sizeWhenDone && torrent.sizeWhenDone > 0) {
+            const haveValid = torrent.haveValid || 0
+            const haveUnchecked = torrent.haveUnchecked || 0
+            const totalHave = haveValid + haveUnchecked
+            torrent.percentDone = totalHave / torrent.sizeWhenDone
+          }
+
           // 从标签中提取分类信息（使用 "category:" 前缀）
           if (torrent.labels && torrent.labels.length > 0) {
             const categoryLabel = torrent.labels.find(label => label.startsWith('category:'))
@@ -509,7 +523,7 @@ const qbStateMap: Record<string, TorrentStatus> = {
   // 等待状态
   queuedDL: TorrentStatusEnum.DOWNLOAD_WAIT,
   queuedUP: TorrentStatusEnum.SEED_WAIT,
-  metaDL: TorrentStatusEnum.CHECK_WAIT,
+  metaDL: TorrentStatusEnum.DOWNLOAD_WAIT,  // 获取元数据，准备下载
   allocating: TorrentStatusEnum.DOWNLOAD_WAIT,
   moving: TorrentStatusEnum.DOWNLOAD_WAIT,
 

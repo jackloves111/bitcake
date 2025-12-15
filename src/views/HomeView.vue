@@ -359,7 +359,7 @@
     </div>
 
     <!-- 添加种子对话框 -->
-    <el-dialog v-model="showAddDialog" title="添加种子" :width="defaultDialogWidth">
+    <el-dialog v-model="showAddDialog" title="添加种子（支持批量）" :width="defaultDialogWidth">
       <el-form :model="addForm" label-width="100px">
         <el-form-item label="种子来源">
           <el-radio-group v-model="addForm.type">
@@ -371,8 +371,8 @@
           <el-input
             v-model="addForm.magnet"
             type="textarea"
-            :rows="3"
-            placeholder="magnet:?xt=urn:btih:..."
+            :rows="6"
+            placeholder="支持批量添加，每行一个磁力链接&#10;magnet:?xt=urn:btih:...&#10;magnet:?xt=urn:btih:..."
           />
         </el-form-item>
         <el-form-item v-else label="种子文件">
@@ -380,12 +380,13 @@
             ref="uploadRef"
             class="torrent-file-upload"
             :auto-upload="false"
-            :limit="1"
             accept=".torrent"
             :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
             :file-list="fileList"
+            multiple
           >
-            <el-button :icon="Upload">选择文件</el-button>
+            <el-button :icon="Upload">选择文件（支持多选）</el-button>
           </el-upload>
         </el-form-item>
         <el-form-item label="下载目录">
@@ -887,7 +888,7 @@ const showAddDialog = ref(false)
 const addForm = ref({
   type: 'magnet',
   magnet: '',
-  file: null as File | null,
+  files: [] as File[],
   downloadDir: '',
   paused: false,
 })
@@ -2148,48 +2149,128 @@ const resetDetailInteractions = () => {
 
 // 文件选择
 const handleFileChange = (file: any) => {
-  addForm.value.file = file.raw
+  if (file.raw && !addForm.value.files.find(f => f.name === file.raw.name)) {
+    addForm.value.files.push(file.raw)
+  }
+}
+
+// 文件移除
+const handleFileRemove = (file: any) => {
+  const index = addForm.value.files.findIndex(f => f.name === file.name)
+  if (index > -1) {
+    addForm.value.files.splice(index, 1)
+  }
 }
 
 // 添加种子
 const handleAddTorrent = async () => {
   try {
-    const payload: AddTorrentPayload = {
+    const basePayload = {
       paused: addForm.value.paused,
-    }
-    if (addForm.value.downloadDir) {
-      payload.downloadDir = addForm.value.downloadDir
+      downloadDir: addForm.value.downloadDir || undefined,
     }
 
+    let successCount = 0
+    let failCount = 0
+    const errors: string[] = []
+
     if (addForm.value.type === 'magnet') {
-      if (!addForm.value.magnet) {
+      // 批量处理磁力链接
+      if (!addForm.value.magnet.trim()) {
         ElMessage.warning('请输入磁力链接')
         return
       }
-      payload.magnet = addForm.value.magnet
-    } else {
-      if (!addForm.value.file) {
-        ElMessage.warning('请选择种子文件')
+
+      // 按行分割，过滤空行
+      const magnetLinks = addForm.value.magnet
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+
+      if (magnetLinks.length === 0) {
+        ElMessage.warning('请输入至少一个磁力链接')
         return
       }
-      payload.file = addForm.value.file
+
+      // 显示进度提示
+      const loadingMsg = ElMessage.info({
+        message: `正在添加 ${magnetLinks.length} 个种子...`,
+        duration: 0,
+      })
+
+      for (const magnet of magnetLinks) {
+        try {
+          await api.addTorrent({
+            ...basePayload,
+            magnet,
+          })
+          successCount++
+        } catch (error: any) {
+          failCount++
+          errors.push(`${magnet.substring(0, 50)}...: ${error.message}`)
+        }
+      }
+
+      loadingMsg.close()
+    } else {
+      // 批量处理种子文件
+      if (addForm.value.files.length === 0) {
+        ElMessage.warning('请选择至少一个种子文件')
+        return
+      }
+
+      // 显示进度提示
+      const loadingMsg = ElMessage.info({
+        message: `正在添加 ${addForm.value.files.length} 个种子文件...`,
+        duration: 0,
+      })
+
+      for (const file of addForm.value.files) {
+        try {
+          await api.addTorrent({
+            ...basePayload,
+            file,
+          })
+          successCount++
+        } catch (error: any) {
+          failCount++
+          errors.push(`${file.name}: ${error.message}`)
+        }
+      }
+
+      loadingMsg.close()
     }
 
-    await api.addTorrent(payload)
-    ElMessage.success('添加成功')
+    // 显示结果
+    if (failCount === 0) {
+      ElMessage.success(`成功添加 ${successCount} 个种子`)
+    } else if (successCount === 0) {
+      ElMessage.error(`添加失败: ${errors.join('; ')}`)
+    } else {
+      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`)
+      if (errors.length > 0) {
+        console.error('添加失败的种子:', errors)
+      }
+    }
+
     showAddDialog.value = false
+
     // 重置表单数据
     addForm.value = {
       type: 'magnet',
       magnet: '',
-      file: null,
+      files: [],
       downloadDir: '',
       paused: false,
     }
+
     // 清空文件列表
     fileList.value = []
+
     // 清空上传组件
     uploadRef.value?.clearFiles()
+
+    // 刷新列表
     loadTorrents()
   } catch (error: any) {
     ElMessage.error(`添加失败: ${error.message}`)

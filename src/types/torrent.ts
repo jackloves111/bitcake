@@ -59,6 +59,10 @@ export interface Torrent {
   totalSize: number
   percentDone: number
   recheckProgress?: number
+  haveValid?: number
+  haveUnchecked?: number
+  sizeWhenDone?: number
+  leftUntilDone?: number
   rateDownload: number
   rateUpload: number
   uploadRatio: number
