@@ -786,7 +786,6 @@ import {
   Filter,
 } from '@element-plus/icons-vue'
 import * as api from '@/api/torrents'
-import type { AddTorrentPayload } from '@/api/torrents'
 import type { Torrent, TorrentStatus } from '@/types/transmission'
 import { TorrentStatusEnum } from '@/types/transmission'
 import { getTrackerDisplayName, getTrackerHost, matchesTrackerFilter } from '@/utils/torrent'
