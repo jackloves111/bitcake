@@ -148,6 +148,7 @@ import {
   SwitchButton,
   Sunny,
   Connection,
+  Timer,
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useSystemStatusStore } from "@/stores/systemStatus";
@@ -236,6 +237,7 @@ const getTorrentCount = (statusValue: StatusFilter): number | string => {
 
 const navigationItems = [
   { index: "/reseed", label: "辅种管理", icon: Connection },
+  { index: "/speed-strategy", label: "限速策略", icon: Timer },
   { index: "/settings", label: "设置", icon: Setting },
   { index: "/stats", label: "数据统计", icon: TrendCharts },
 ];

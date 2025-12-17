@@ -63,18 +63,35 @@
       >
         <template #default="{ row }">
           <div class="tracker-tags">
-            <el-tag
-              v-for="tracker in row.trackers.slice(0, 5)"
-              :key="tracker.announce"
-              :type="getTrackerTagType(tracker)"
-              class="tracker-tag"
-              size="small"
-            >
-              {{ tracker.displayName }}
-              <span v-if="tracker.statusText" class="tracker-status">
-                ({{ tracker.statusText }})
-              </span>
-            </el-tag>
+            <template v-for="tracker in row.trackers.slice(0, 5)" :key="tracker.announce">
+              <el-tooltip
+                v-if="!tracker.lastAnnounceSucceeded && tracker.errorDetail"
+                :content="tracker.errorDetail"
+                placement="top"
+              >
+                <el-tag
+                  :type="getTrackerTagType(tracker)"
+                  class="tracker-tag"
+                  size="small"
+                >
+                  {{ tracker.displayName }}
+                  <span v-if="tracker.statusText" class="tracker-status">
+                    ({{ tracker.statusText }})
+                  </span>
+                </el-tag>
+              </el-tooltip>
+              <el-tag
+                v-else
+                :type="getTrackerTagType(tracker)"
+                class="tracker-tag"
+                size="small"
+              >
+                {{ tracker.displayName }}
+                <span v-if="tracker.statusText" class="tracker-status">
+                  ({{ tracker.statusText }})
+                </span>
+              </el-tag>
+            </template>
             <el-tag
               v-if="row.trackers.length > 5"
               type="info"
@@ -196,6 +213,21 @@
               </template>
             </el-table-column>
             <el-table-column
+              label="错误信息"
+              width="150"
+            >
+              <template #default="{ row }">
+                <template v-if="row.errorType">
+                  <el-tooltip :content="row.errorString || '未知错误'" placement="top">
+                    <el-tag type="danger" size="small">
+                      {{ row.errorType }}
+                    </el-tag>
+                  </el-tooltip>
+                </template>
+                <span v-else style="color: #909399">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column
               prop="percentDone"
               label="进度"
               width="100"
@@ -257,6 +289,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useSystemStatusStore } from '@/stores/systemStatus'
 import { getTrackerDisplayName } from '@/utils/torrent'
+import * as api from '@/api/torrents'
 import type { Torrent, TorrentStatus } from '@/types/torrent'
 import { TorrentStatusEnum } from '@/types/torrent'
 
@@ -278,6 +311,7 @@ interface ReseedTracker {
   displayName: string
   statusText: string
   lastAnnounceSucceeded: boolean
+  errorDetail?: string // 错误详情
 }
 
 interface ReseedData {
@@ -299,7 +333,103 @@ interface ReseedData {
     rateUpload: number
     category?: string
     downloadDir: string
+    errorString?: string
+    errorType?: string
   }[]
+}
+
+// 错误消息映射配置
+interface ErrorMapping {
+  keywords: string[] // 关键字列表，只要匹配其中之一就命中
+  type: string // 错误类型（用于筛选）
+  message: string // 友好的错误提示
+}
+
+const errorMappings: ErrorMapping[] = [
+  {
+    keywords: [
+      'No data found',
+      'Ensure your drives are connected',
+      'Set Location',
+    ],
+    type: '文件不存在',
+    message: '文件不存在',
+  },
+  {
+    keywords: ['more than', '上传同一个种子', 'other location'],
+    type: '重复汇报',
+    message: '重复汇报，通常可忽略',
+  },
+  {
+    keywords: ['You already are downloading'],
+    type: '重复汇报',
+    message: '重复下载，通常可忽略',
+  },
+  {
+    keywords: ['missingFiles'],
+    type: '文件不存在',
+    message: '文件不存在',
+  },
+  {
+    keywords: ['Permission denied', 'permission'],
+    type: '权限错误',
+    message: '权限错误',
+  },
+  {
+    keywords: ['No space left', 'disk full', 'Disk full'],
+    type: '磁盘空间不足',
+    message: '磁盘空间不足',
+  },
+  {
+    keywords: ['Tracker gave HTTP response code 404', 'Tracker not found'],
+    type: 'Tracker错误',
+    message: 'Tracker未找到',
+  },
+  {
+    keywords: ['Tracker gave HTTP response code 403', 'Forbidden'],
+    type: 'Tracker错误',
+    message: 'Tracker拒绝访问',
+  },
+  {
+    keywords: ['Tracker gave a warning', 'Unregistered torrent'],
+    type: 'Tracker错误',
+    message: '种子未注册',
+  },
+  {
+    keywords: ['Tracker gave HTTP response code 5'],
+    type: 'Tracker错误',
+    message: 'Tracker服务器错误',
+  },
+  {
+    keywords: ['Connection refused', 'Could not connect', 'timeout'],
+    type: '网络错误',
+    message: '网络连接失败',
+  },
+  {
+    keywords: ['Piece #', 'corrupt', 'checksum'],
+    type: '数据校验错误',
+    message: '数据校验失败',
+  },
+]
+
+// 获取错误类型（用于筛选）
+const getErrorType = (errorString?: string): string => {
+  if (!errorString) return '其他错误'
+
+  const lowerError = errorString.toLowerCase()
+
+  // 遍历错误映射配置
+  for (const mapping of errorMappings) {
+    const matched = mapping.keywords.some((keyword) =>
+      lowerError.includes(keyword.toLowerCase())
+    )
+
+    if (matched) {
+      return mapping.type
+    }
+  }
+
+  return '其他错误'
 }
 
 const systemStatusStore = useSystemStatusStore()
@@ -385,11 +515,16 @@ const loadReseedData = () => {
         if (!tracker) return
         const announce = tracker.announce
         if (!trackerMap.has(announce)) {
+          // 基于种子的 errorString 判断是否异常，而不是 tracker.lastAnnounceSucceeded
+          const hasError = !!torrent.errorString
+          const errorDetail = hasError ? torrent.errorString : undefined
+
           trackerMap.set(announce, {
             announce,
             displayName: getTrackerDisplayName(announce),
-            statusText: tracker.lastAnnounceSucceeded ? '正常' : '异常',
-            lastAnnounceSucceeded: tracker.lastAnnounceSucceeded || false
+            statusText: hasError ? '异常' : '正常',
+            lastAnnounceSucceeded: !hasError,
+            errorDetail
           })
         }
       }
@@ -420,7 +555,9 @@ const loadReseedData = () => {
         uploadedEver: t.uploadedEver || 0,
         rateUpload: t.rateUpload,
         category: t.category,
-        downloadDir: t.downloadDir
+        downloadDir: t.downloadDir,
+        errorString: t.errorString,
+        errorType: t.errorString ? getErrorType(t.errorString) : undefined
       }))
     }
   })
@@ -557,7 +694,17 @@ watch(searchKeyword, (newValue) => {
 // 定时刷新
 let refreshTimer: number | null = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 如果 systemStatusStore 中没有种子数据，先加载
+  if (systemStatusStore.torrents.length === 0) {
+    try {
+      const result = await api.getTorrents()
+      systemStatusStore.setTorrents(result.torrents)
+    } catch (error) {
+      console.error('加载种子数据失败:', error)
+    }
+  }
+
   loadReseedData()
   // 每 10 秒刷新一次（配合缓存机制，数据未变化时不会重新计算）
   refreshTimer = window.setInterval(() => {

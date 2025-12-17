@@ -6,15 +6,9 @@
 
 # 说明 (这部分是人工编写的)
 
-由于找不到比较趁手的 ui 界面，就用 ai 生成撸了一个，以下说明 90%以上是 ai 生成的，但是信息足够新手起步了
+- 有的人不会更换 webui，我用 transmission-4.0.5 的官方镜像，重新构建了镜像，需要的自己参考下方，如果不喜欢 4.0.5，就自己替换 webui
 
-原则上来说，是不应该重复造轮子的，但是 ai 生成成本太低了，也顺带着学习了下如何使用 ai 生成
-
-有的人不会更换 webui，我使用 transmission-4.0.5 的官方镜像，重新构建了镜像，需要的自己参考下方，如果不喜欢 4.0.5，就自己替换 webui
-
-对了，public 目录下有个 trackerSites.json，配置了 tracker 和站点名称的映射，用于把网址显示成站点名称，方便统计的时候查看数据
-
-我只配置了我有的一些站，欢迎补充
+- public 目录下有个 trackerSites.json，配置了 tracker 和站点名称的映射，用于把网址显示成站点名称，方便统计的时候查看数据，我只配置了我有的一些站，欢迎补充
 
 # BitCake 🍰
 
@@ -103,28 +97,12 @@ environment:
 
 - 点击右上角的退出按钮即可注销
 
-## 🔧 环境变量
+## 🔧 环境变量 （本地开发使用）
 
 - `VITE_TORRENT_BACKEND`: 指定后端类型，可选值 `transmission` 或 `qbittorrent`
 - `VITE_TORRENT_API_BASE`: 自定义 API 基础路径
 - `VITE_PROXY_TRANSMISSION_URL`: Transmission 代理地址（开发用）
 - `VITE_PROXY_QB_URL`: qBittorrent 代理地址（开发用）
-
-## 📊 主要功能
-
-- ✅ 种子列表管理（添加、删除、启动、暂停）
-- ✅ 种子详情查看（文件列表、Tracker、Peers）
-- ✅ 批量操作（批量限速、批量删除）
-- ✅ 高级筛选（按状态、Tracker、关键词）
-- ✅ 数据统计与可视化图表
-- ✅ 全局设置管理（下载、速度、连接、队列等）
-- ✅ 实时数据刷新
-- ✅ 紧凑的界面设计
-
-## 📝 版本信息
-
-- 后端版本、RPC 速率与磁盘空间显示在顶部导航栏
-- WebUI 版本号在 `package.json` 中维护
 
 ## 🙏 致谢
 

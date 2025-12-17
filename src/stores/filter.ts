@@ -8,6 +8,8 @@ export const useFilterStore = defineStore('filter', () => {
   const statusFilter = ref<StatusFilter>('all')
   const trackerFilter = ref('')
   const categoryFilter = ref('')
+  const downloadDirFilter = ref('')
+  const errorTypeFilter = ref('')
 
   const setStatusFilter = (filter: StatusFilter) => {
     statusFilter.value = filter
@@ -21,19 +23,33 @@ export const useFilterStore = defineStore('filter', () => {
     categoryFilter.value = filter
   }
 
+  const setDownloadDirFilter = (filter: string) => {
+    downloadDirFilter.value = filter
+  }
+
+  const setErrorTypeFilter = (filter: string) => {
+    errorTypeFilter.value = filter
+  }
+
   const resetFilters = () => {
     statusFilter.value = 'all'
     trackerFilter.value = ''
     categoryFilter.value = ''
+    downloadDirFilter.value = ''
+    errorTypeFilter.value = ''
   }
 
   return {
     statusFilter,
     trackerFilter,
     categoryFilter,
+    downloadDirFilter,
+    errorTypeFilter,
     setStatusFilter,
     setTrackerFilter,
     setCategoryFilter,
+    setDownloadDirFilter,
+    setErrorTypeFilter,
     resetFilters,
   }
 })

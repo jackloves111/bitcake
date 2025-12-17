@@ -41,6 +41,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/ReseedView.vue'),
         meta: { title: '辅种管理', requiresAuth: true },
       },
+      {
+        path: 'speed-strategy',
+        name: 'SpeedStrategy',
+        component: () => import('@/views/SpeedLimitStrategyView.vue'),
+        meta: { title: '限速策略', requiresAuth: true },
+      },
     ],
   },
   {

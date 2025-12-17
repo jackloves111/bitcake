@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="tips.length > 0"
+    v-if="tipsStore.tips.length > 0"
     class="header-tips"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
@@ -20,42 +20,26 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-
-interface TipItem {
-  id: string;
-  content: string;
-}
-
-// Tips 数据
-const tips: TipItem[] = [
-  { id: "1", content: "有bug或需求请提issues" },
-  { id: "2", content: "右上角可以切换应用主题！" },
-  { id: "3", content: "双击种子可以查看详细信息。" },
-  { id: "4", content: "兼容移动端（理论上...）" },
-  { id: "5", content: "左侧菜单支持按状态过滤种子。" },
-  { id: "6", content: "已支持批量添加操作" },
-  { id: "7", content: "优先适配transmission，其次qbittorrent" },
-  { id: "8", content: "推送频率很高，建议至少每周一更" },
-  { id: "9", content: "tracker对应站点信息不全，添加请填issues" },
-];
+import { useTipsStore } from "@/stores/tips";
 
 // State
+const tipsStore = useTipsStore();
 const currentIndex = ref(0);
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
 // Computed
 const currentTip = computed(() => {
-  if (tips.length === 0) return "";
-  return tips[currentIndex.value]?.content || "";
+  if (tipsStore.tips.length === 0) return "";
+  return tipsStore.tips[currentIndex.value]?.content || "";
 });
 
 // Methods
 const nextTip = () => {
-  currentIndex.value = (currentIndex.value + 1) % tips.length;
+  currentIndex.value = (currentIndex.value + 1) % tipsStore.tips.length;
 };
 
 const startCarousel = () => {
-  if (tips.length <= 1) return;
+  if (tipsStore.tips.length <= 1) return;
   intervalId = setInterval(nextTip, 5000);
 };
 
