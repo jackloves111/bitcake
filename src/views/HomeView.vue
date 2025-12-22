@@ -149,6 +149,7 @@
           :reserve-selection="true"
           @selection-change="handleSelectionChange"
           @sort-change="handleSortChange"
+          @row-click="handleRowClick"
           @row-contextmenu="handleRowContextMenu"
           @row-dblclick="handleRowDoubleClick"
           @header-dragend="handleColumnResize"
@@ -197,10 +198,16 @@
             sortable="custom"
           >
             <template #default="{ row }">
-              <el-progress
-                :percentage="Math.round(getTorrentProgress(row) * 100)"
-                :status="getTorrentProgress(row) === 1 ? 'success' : undefined"
-              />
+              <el-tooltip
+                :content="getProgressTooltip(row)"
+                :disabled="getTorrentProgress(row) === 1"
+                placement="top"
+              >
+                <el-progress
+                  :percentage="Math.round(getTorrentProgress(row) * 100)"
+                  :status="getTorrentProgress(row) === 1 ? 'success' : undefined"
+                />
+              </el-tooltip>
             </template>
           </el-table-column>
           <el-table-column
@@ -255,19 +262,6 @@
           >
             <template #default="{ row }">
               {{ formatSpeed(row.rateUpload) }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            v-if="!isCompactTable"
-            prop="eta"
-            column-key="eta"
-            label="剩余时间"
-            :width="getColumnWidth('eta', 140)"
-            :min-width="120"
-            sortable="custom"
-          >
-            <template #default="{ row }">
-              {{ formatETA(row.eta, row.status) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -1280,6 +1274,7 @@ const detailPeers = ref<
 >([]);
 const tableRef = ref<TableInstance | null>(null);
 const suppressSelectionChange = ref(false);
+const lastClickedIndex = ref<number>(-1);
 const removeDialog = ref({
   visible: false,
   ids: [] as number[],
@@ -1508,6 +1503,43 @@ const getTorrentProgress = (torrent: Torrent): number => {
   }
   // 其他状态使用下载进度
   return torrent.percentDone;
+};
+
+// 获取进度条悬浮提示内容
+const getProgressTooltip = (torrent: Torrent): string => {
+  const progress = getTorrentProgress(torrent);
+  const progressPercent = Math.round(progress * 100);
+
+  // 如果已完成，不显示提示
+  if (progress === 1) {
+    return '';
+  }
+
+  // 构建提示内容：进度 + 剩余时间
+  const parts: string[] = [`进度: ${progressPercent}%`];
+
+  // 添加剩余时间（仅对未完成的任务）
+  const eta = torrent.eta;
+  if (eta !== undefined && eta !== null && eta >= 0) {
+    // 排除已完成和已停止的状态
+    if (
+      torrent.status !== TorrentStatusEnum.SEED &&
+      torrent.status !== TorrentStatusEnum.SEED_WAIT &&
+      torrent.status !== TorrentStatusEnum.STOPPED
+    ) {
+      const etaText = formatETA(eta, torrent.status);
+      if (etaText && etaText !== '—' && etaText !== '未知') {
+        parts.push(`剩余时间: ${etaText}`);
+      }
+    }
+  }
+
+  // 如果有下载速度，也显示
+  if (torrent.rateDownload > 0) {
+    parts.push(`下载速度: ${formatSpeed(torrent.rateDownload)}`);
+  }
+
+  return parts.join('\n');
 };
 
 const getRatioClass = (ratio: number): string => {
@@ -1858,6 +1890,55 @@ const handleSelectionChange = (selection: Torrent[]) => {
   selectedIdsState.value = selection.map((torrent) => torrent.id);
 };
 
+const handleRowClick = (row: Torrent, _column: any, event: MouseEvent) => {
+  if (!tableRef.value) return;
+
+  // 获取当前行在分页数据中的索引
+  const clickedIndex = paginatedTorrents.value.findIndex((t) => t.id === row.id);
+  if (clickedIndex === -1) return;
+
+  // 判断是否在选中状态
+  const isSelected = selectedTorrents.value.some((t) => t.id === row.id);
+
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl/Cmd + 点击：切换选中状态
+    if (isSelected) {
+      tableRef.value.toggleRowSelection(row, false);
+    } else {
+      tableRef.value.toggleRowSelection(row, true);
+    }
+    lastClickedIndex.value = clickedIndex;
+  } else if (event.shiftKey) {
+    // Shift + 点击：范围选择
+    if (lastClickedIndex.value >= 0 && lastClickedIndex.value < paginatedTorrents.value.length) {
+      // 清除当前所有选中
+      tableRef.value.clearSelection();
+
+      // 计算范围
+      const start = Math.min(lastClickedIndex.value, clickedIndex);
+      const end = Math.max(lastClickedIndex.value, clickedIndex);
+
+      // 选中范围内的所有行
+      for (let i = start; i <= end; i++) {
+        tableRef.value.toggleRowSelection(paginatedTorrents.value[i], true);
+      }
+    } else {
+      // 如果没有上次点击记录，只选中当前行
+      tableRef.value.clearSelection();
+      tableRef.value.toggleRowSelection(row, true);
+      lastClickedIndex.value = clickedIndex;
+    }
+  } else {
+    // 普通点击：切换当前行的选中状态
+    if (isSelected) {
+      tableRef.value.toggleRowSelection(row, false);
+    } else {
+      tableRef.value.toggleRowSelection(row, true);
+    }
+    lastClickedIndex.value = clickedIndex;
+  }
+};
+
 const handleRowContextMenu = (
   row: Torrent,
   _column: any,
@@ -1886,6 +1967,34 @@ const handleRowContextMenu = (
 
 const handleRowDoubleClick = (row: Torrent) => {
   openDetailDialog(row);
+};
+
+const handleKeydown = (event: KeyboardEvent) => {
+  // Ctrl+A 或 Cmd+A 全选当前页
+  if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+    // 检查焦点是否在输入框或文本区域中
+    const activeElement = document.activeElement;
+    const tagName = activeElement?.tagName.toLowerCase();
+
+    // 如果焦点在输入框、文本区域或可编辑元素中，不拦截默认行为
+    if (tagName === 'input' || tagName === 'textarea' ||
+        (activeElement as HTMLElement)?.isContentEditable) {
+      return;
+    }
+
+    // 阻止默认的全选文本行为
+    event.preventDefault();
+
+    // 全选当前页的所有行
+    if (tableRef.value && paginatedTorrents.value.length > 0) {
+      tableRef.value.clearSelection();
+      paginatedTorrents.value.forEach((torrent) => {
+        tableRef.value?.toggleRowSelection(torrent, true);
+      });
+      // 更新最后点击索引为最后一行
+      lastClickedIndex.value = paginatedTorrents.value.length - 1;
+    }
+  }
 };
 
 const hideContextMenu = () => {
@@ -2924,12 +3033,14 @@ onMounted(() => {
   startAutoRefresh();
   window.addEventListener("click", hideContextMenu);
   window.addEventListener("scroll", hideContextMenu, true);
+  window.addEventListener("keydown", handleKeydown);
 });
 
 onBeforeUnmount(() => {
   stopAutoRefresh();
   window.removeEventListener("click", hideContextMenu);
   window.removeEventListener("scroll", hideContextMenu, true);
+  window.removeEventListener("keydown", handleKeydown);
 });
 </script>
 

@@ -131,7 +131,7 @@
 
       <el-table-column
         label="操作"
-        width="100"
+        width="150"
         fixed="right"
       >
         <template #default="{ row }">
@@ -142,6 +142,14 @@
             @click="showReseedDetails(row)"
           >
             详情
+          </el-button>
+          <el-button
+            type="danger"
+            size="small"
+            link
+            @click="showDeleteConfirm(row)"
+          >
+            删除
           </el-button>
         </template>
       </el-table-column>
@@ -281,12 +289,69 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 删除确认对话框 -->
+    <el-dialog
+      v-model="deleteDialogVisible"
+      title="确认删除"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div v-if="deleteTarget" class="delete-confirm">
+        <el-alert
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          <template #title>
+            <div style="font-weight: 600;">此操作将删除以下资源在所有 Tracker 上的种子</div>
+          </template>
+        </el-alert>
+
+        <div class="delete-info">
+          <p><strong>文件名：</strong>{{ deleteTarget.fileName }}</p>
+          <p><strong>文件大小：</strong>{{ formatSize(deleteTarget.totalSize) }}</p>
+          <p><strong>涉及 Tracker 数量：</strong>{{ deleteTarget.trackerCount }} 个</p>
+          <p><strong>涉及种子数量：</strong>{{ deleteTarget.torrents.length }} 个</p>
+        </div>
+
+        <div class="tracker-list">
+          <p><strong>将删除以下 Tracker 的种子：</strong></p>
+          <div class="tracker-tags">
+            <el-tag
+              v-for="tracker in deleteTarget.trackers"
+              :key="tracker.announce"
+              size="small"
+              style="margin: 4px"
+            >
+              {{ tracker.displayName }}
+            </el-tag>
+          </div>
+        </div>
+
+        <el-checkbox v-model="deleteWithFiles" style="margin-top: 16px;">
+          同时删除本地文件
+        </el-checkbox>
+      </div>
+
+      <template #footer>
+        <el-button @click="deleteDialogVisible = false">取消</el-button>
+        <el-button
+          type="danger"
+          :loading="deleteLoading"
+          @click="confirmDelete"
+        >
+          确认删除
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useSystemStatusStore } from '@/stores/systemStatus'
 import { getTrackerDisplayName } from '@/utils/torrent'
 import * as api from '@/api/torrents'
@@ -439,6 +504,10 @@ const filterMode = ref<'all' | 'reseed'>('all')
 const reseedData = ref<ReseedData[]>([])
 const detailDialogVisible = ref(false)
 const selectedReseed = ref<ReseedData | null>(null)
+const deleteDialogVisible = ref(false)
+const deleteTarget = ref<ReseedData | null>(null)
+const deleteWithFiles = ref(false)
+const deleteLoading = ref(false)
 const sortProp = ref('trackerCount')
 const sortOrder = ref<'ascending' | 'descending'>('descending')
 const currentPage = ref(1)
@@ -681,6 +750,47 @@ const showReseedDetails = (reseed: ReseedData) => {
   detailDialogVisible.value = true
 }
 
+// 显示删除确认对话框
+const showDeleteConfirm = (reseed: ReseedData) => {
+  deleteTarget.value = reseed
+  deleteWithFiles.value = false
+  deleteDialogVisible.value = true
+}
+
+// 确认删除
+const confirmDelete = async () => {
+  if (!deleteTarget.value) return
+
+  deleteLoading.value = true
+
+  try {
+    // 获取该资源所有种子的 ID
+    const torrentIds = deleteTarget.value.torrents.map(t => t.id)
+
+    // 调用删除 API
+    await api.removeTorrents(torrentIds, deleteWithFiles.value)
+
+    ElMessage.success(`已删除 ${torrentIds.length} 个种子`)
+
+    // 关闭对话框
+    deleteDialogVisible.value = false
+    deleteTarget.value = null
+
+    // 重新加载种子数据
+    try {
+      const result = await api.getTorrents()
+      systemStatusStore.setTorrents(result.torrents)
+      loadReseedData()
+    } catch (error) {
+      console.error('重新加载种子数据失败:', error)
+    }
+  } catch (error: any) {
+    ElMessage.error(`删除失败: ${error.message || error}`)
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
 // 监听搜索关键词变化，使用防抖
 const debouncedSearch = debounce((value: string) => {
   debouncedSearchKeyword.value = value
@@ -800,5 +910,32 @@ onUnmounted(() => {
   margin-bottom: 12px;
   font-size: 16px;
   font-weight: 600;
+}
+
+.delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.delete-info p {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.tracker-list {
+  background-color: #f5f7fa;
+  padding: 12px;
+  border-radius: 4px;
+}
+
+.tracker-list p {
+  margin: 0 0 8px 0;
+}
+
+.tracker-list .tracker-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 </style>
