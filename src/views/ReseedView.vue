@@ -22,6 +22,7 @@
       :data="paginatedData"
       style="width: 100%"
       :height="tableHeight"
+      border
       stripe
       row-key="hashString"
       @sort-change="handleSortChange"
