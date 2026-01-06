@@ -360,13 +360,17 @@ const formatSpeed = (bytes: number): string => {
 }
 
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   background-color: #409eff;
   color: white;
   padding: 12px 20px;
   gap: 16px;
+}
+ 
+.header :deep(.header-tips) {
+  justify-self: center;
 }
 
 .header-left {
@@ -493,7 +497,6 @@ const formatSpeed = (bytes: number): string => {
   }
 
   .header {
-    flex-direction: row;
     align-items: center;
     padding: 12px 16px;
     gap: 12px;
