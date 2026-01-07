@@ -2,152 +2,147 @@
   "sites": [
     {
       "name": "蟹黄堡",
-      "trackers": ["crabpt.vip"]
+      "trackers": ["crabpt"]
     },
     {
       "name": "财神",
       "trackers": [
-        "cspt.top",
-        "tracker.cspt.cc",
-        "tracker.cspt.date",
-        "tracker.cspt.top"
+        "cspt"
       ]
     },
     {
       "name": "春天",
-      "trackers": ["on.springsunday.net"]
+      "trackers": ["springsunday"]
     },
     {
       "name": "我堡",
-      "trackers": ["ourbits.club"]
+      "trackers": ["ourbits"]
     },
     {
       "name": "星空",
-      "trackers": ["star-space.net"]
+      "trackers": ["star-space"]
     },
     {
       "name": "观众",
-      "trackers": ["t.audiences.me", "tracker.cinefiles.info"]
+      "trackers": ["audiences", "cinefiles"]
     },
     {
       "name": "织梦",
-      "trackers": ["zmpt.cc"]
+      "trackers": ["zmpt"]
     },
     {
       "name": "杜比",
-      "trackers": ["t.hddolby.com"]
+      "trackers": ["hddolby"]
     },
     {
       "name": "家园",
-      "trackers": ["t.hdhome.org"]
+      "trackers": ["hdhome"]
     },
     {
       "name": "U堡",
-      "trackers": ["t.ubits.club"]
+      "trackers": ["ubits"]
     },
     {
       "name": "三月",
-      "trackers": ["duckboobee.org"]
+      "trackers": ["duckboobee"]
     },
     {
       "name": "末日",
-      "trackers": ["tracker.agsvpt.cn"]
+      "trackers": ["agsvpt"]
     },
     {
       "name": "海豹",
-      "trackers": ["tracker.greatposterwall.com"]
+      "trackers": ["greatposterwall"]
     },
     {
       "name": "躺平",
-      "trackers": ["www.tangpt.top"]
+      "trackers": ["tangpt"]
     },
     {
       "name": "车站",
-      "trackers": ["tracker.carpt.net"]
+      "trackers": ["carpt"]
     },
     {
       "name": "海豹",
-      "trackers": ["greatposterwall.com"]
+      "trackers": ["greatposterwall"]
     },
     {
       "name": "好大",
-      "trackers": ["tracker.hdarea.club"]
+      "trackers": ["hdarea"]
     },
     {
       "name": "朋友",
-      "trackers": ["tracker.keepfrds.com"]
+      "trackers": ["keepfrds"]
     },
     {
       "name": "麒麟",
-      "trackers": ["tracker.hdkyl.in", "www.hdkylin.top"]
+      "trackers": ["hdkyl"]
     },
     {
       "name": "猪猪",
-      "trackers": ["tracker.piggo.me"]
+      "trackers": ["piggo"]
     },
     {
       "name": "憨憨",
-      "trackers": ["tracker.hhanclub.top"]
+      "trackers": ["hhanclub"]
     },
     {
       "name": "老师",
-      "trackers": ["www.nicept.net"]
+      "trackers": ["nicept"]
     },
     {
       "name": "肉丝",
-      "trackers": ["tracker.rousipt.com"]
+      "trackers": ["rousipt"]
     },
     {
       "name": "熊猫",
-      "trackers": ["tracker.pandapt.net"]
+      "trackers": ["pandapt"]
     },
     {
       "name": "TCCF",
-      "trackers": ["t.et8.org"]
+      "trackers": ["et8"]
     },
     {
       "name": "馒头",
-      "trackers": ["tracker.m-team.cc"]
+      "trackers": ["m-team"]
     },
     {
       "name": "皇后",
-      "trackers": ["tracker.open.cd"]
+      "trackers": ["open.cd"]
     },
     {
       "name": "猫站",
-      "trackers": ["tracker.pterclub.net", "tracker.pterclub.com"]
+      "trackers": ["pterclub"]
     },
     {
       "name": "TTG",
-      "trackers": ["tracker.totheglory.im"]
+      "trackers": ["totheglory"]
     },
     {
       "name": "青蛙",
       "trackers": [
-        "tracker.qingwa.pro",
-        "tracker.qingwapt.com",
-        "tracker.qingwapt.org"
+        "qingwa"
       ]
     },
     {
       "name": "彩虹岛",
       "trackers": [
-        "chdbits.xyz",
-        "tracker.ptchdbits.co",
-        "tracker.rainbowisland.co"
+        "chdbits",
+        "ptchdbits",
+        "rainbowisland"
       ]
     },
     {
       "name": "天空",
-      "trackers": ["tracker.hdsky.me"]
+      "trackers": ["hdsky"]
     },
     {
       "name": "好学",
-      "trackers": ["tracker.hxpt.org"]
+      "trackers": ["hxpt"]
     },
     {
       "name": "PT时间",
-      "trackers": ["www.pttime.org"]
+      "trackers": ["pttime"]
     }
   ]
 }
