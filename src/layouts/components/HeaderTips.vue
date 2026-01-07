@@ -9,7 +9,7 @@
     aria-live="polite"
     aria-label="轮播提示信息"
   >
-    <transition name="fade-slide">
+    <transition name="fade-slide" mode="out-in">
       <div :key="currentIndex" class="tip-content">
         <span class="tip-icon">💡</span>
         <span class="tip-text">{{ currentTip }}</span>

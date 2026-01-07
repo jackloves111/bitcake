@@ -360,33 +360,42 @@ const formatSpeed = (bytes: number): string => {
 }
 
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   background-color: #409eff;
   color: white;
   padding: 12px 20px;
   gap: 16px;
+}
+ 
+.header :deep(.header-tips) {
+  justify-self: center;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .title {
   margin: 0;
   font-size: 20px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-right {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  justify-self: end;
 }
 
 .menu-toggle {
@@ -489,8 +498,7 @@ const formatSpeed = (bytes: number): string => {
   }
 
   .header {
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     padding: 12px 16px;
     gap: 12px;
   }

@@ -369,6 +369,25 @@
               </template>
             </el-table-column>
 
+            <!-- 保存目录列 -->
+            <el-table-column
+              v-else-if="
+                column.key === 'downloadDir' &&
+                (column.showInCompact || !isCompactTable)
+              "
+              :prop="column.prop"
+              :column-key="column.key"
+              :label="column.label"
+              :width="getColumnWidth(column.key, column.defaultWidth)"
+              :min-width="column.minWidth"
+              :sortable="column.sortable ? 'custom' : false"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">
+                {{ row.downloadDir || "—" }}
+              </template>
+            </el-table-column>
+
             <!-- 添加时间列 -->
             <el-table-column
               v-else-if="
@@ -525,9 +544,13 @@
           </el-upload>
         </el-form-item>
         <el-form-item label="下载目录">
-          <el-input
+          <el-autocomplete
             v-model="addForm.downloadDir"
+            :fetch-suggestions="searchDownloadDirs"
             placeholder="留空使用默认目录"
+            style="width: 100%"
+            clearable
+            trigger-on-focus
           />
         </el-form-item>
         <el-form-item label="自动开始">
@@ -551,7 +574,14 @@
     >
       <el-form :model="locationForm" label-width="120px">
         <el-form-item label="新的保存目录">
-          <el-input v-model="locationForm.path" placeholder="/data/downloads" />
+          <el-autocomplete
+            v-model="locationForm.path"
+            :fetch-suggestions="searchDownloadDirs"
+            placeholder="/data/downloads"
+            style="width: 100%"
+            clearable
+            trigger-on-focus
+          />
         </el-form-item>
         <el-form-item label="">
           <el-checkbox v-model="locationForm.move">同时移动文件</el-checkbox>
@@ -1162,6 +1192,7 @@ import { useMediaQuery } from "@/utils/useMediaQuery";
 import { useFilterStore } from "@/stores/filter";
 import { useSystemStatusStore } from "@/stores/systemStatus";
 import { storeToRefs } from "pinia";
+import { isTransmission } from "@/config/torrentClient";
 
 const REFRESH_INTERVAL = 3000;
 const COLUMN_WIDTH_STORAGE_KEY = "tv_table_column_widths";
@@ -1202,6 +1233,7 @@ const {
   downloadDirFilter,
   errorTypeFilter,
 } = storeToRefs(filterStore);
+const { sessionConfig } = storeToRefs(systemStatusStore);
 
 interface LimitFormState {
   downloadLimited: boolean;
@@ -1370,6 +1402,7 @@ const defaultColumnWidths: Record<string, number> = {
   rateUpload: 100,
   eta: 140,
   uploadedEver: 100,
+  downloadDir: 200,
   addedDate: 150,
   activityDate: 150,
   labels: 100,
@@ -1485,6 +1518,15 @@ const tableColumns: ColumnConfig[] = [
     showInCompact: false,
   },
   {
+    key: "downloadDir",
+    label: "保存目录",
+    prop: "downloadDir",
+    sortable: true,
+    minWidth: 160,
+    defaultWidth: 220,
+    showInCompact: false,
+  },
+  {
     key: "addedDate",
     label: "添加时间",
     prop: "addedDate",
@@ -1516,8 +1558,23 @@ const defaultColumnOrder = tableColumns.map((col) => col.key);
 let refreshTimer: number | undefined;
 
 const loading = ref(false);
+function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
+  let timeoutId: number | null = null;
+  return function (this: any, ...args: Parameters<T>) {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = window.setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  } as T;
+}
+
 const torrents = ref<Torrent[]>([]);
 const searchKeyword = ref("");
+const debouncedSearchKeyword = ref("");
+const nameLowerCache = new Map<number, string>();
+const defaultTrackerCache = new Map<number, string>();
 const trackerSearchKeyword = ref("");
 const showAddDialog = ref(false);
 const addForm = ref({
@@ -1934,10 +1991,12 @@ const getRatioClass = (ratio: number): string => {
 
 // 筛选后的种子列表
 const filteredTorrents = computed(() => {
-  const keyword = searchKeyword.value.trim().toLowerCase();
+  const keyword = debouncedSearchKeyword.value.trim().toLowerCase();
   return torrents.value.filter((torrent) => {
+    const nameLower =
+      nameLowerCache.get(torrent.id) ?? torrent.name.toLowerCase();
     const matchesKeyword = keyword
-      ? torrent.name.toLowerCase().includes(keyword)
+      ? nameLower.includes(keyword)
       : true;
     const matchesStatus =
       statusFilter.value === "all"
@@ -1986,7 +2045,7 @@ const filteredTorrents = computed(() => {
 const getSortValue = (torrent: Torrent, prop?: string) => {
   switch (prop) {
     case "name":
-      return torrent.name.toLowerCase();
+      return nameLowerCache.get(torrent.id) ?? torrent.name.toLowerCase();
     case "status":
       return torrent.status;
     case "percentDone":
@@ -1996,7 +2055,7 @@ const getSortValue = (torrent: Torrent, prop?: string) => {
     case "uploadRatio":
       return torrent.uploadRatio;
     case "defaultTracker":
-      return getDefaultTracker(torrent);
+      return defaultTrackerCache.get(torrent.id) ?? getDefaultTracker(torrent);
     case "peersDownloading":
       // 按照 tracker 报告的种子总数排序
       return getTrackerPeerCounts(torrent).seeders;
@@ -2014,6 +2073,8 @@ const getSortValue = (torrent: Torrent, prop?: string) => {
         : Number.MAX_SAFE_INTEGER;
     case "uploadedEver":
       return torrent.uploadedEver ?? 0;
+    case "downloadDir":
+      return (torrent.downloadDir || "").toLowerCase();
     case "addedDate":
       return torrent.addedDate ?? 0;
     case "activityDate":
@@ -2130,6 +2191,24 @@ const downloadDirOptions = computed(() => {
     }));
 });
 
+const allDownloadDirs = computed(() => {
+  const set = new Set<string>();
+  const def = sessionConfig.value?.["download-dir"];
+  if (def) set.add(def);
+  torrents.value.forEach((t) => {
+    if (t.downloadDir) set.add(t.downloadDir);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+});
+
+const searchDownloadDirs = (queryString: string, cb: (results: any[]) => void) => {
+  const q = (queryString || "").trim().toLowerCase();
+  const list = allDownloadDirs.value.filter(
+    (dir) => !q || dir.toLowerCase().includes(q)
+  );
+  cb(list.map((dir) => ({ value: dir })));
+};
+
 const errorTypeOptions = computed(() => {
   const errorTypes = new Set<string>();
 
@@ -2201,6 +2280,26 @@ watch(pageSize, () => {
   currentPage.value = 1;
 });
 
+const debouncedSearch = debounce((value: string) => {
+  debouncedSearchKeyword.value = value;
+  currentPage.value = 1;
+}, 300);
+watch(searchKeyword, (val) => {
+  debouncedSearch(val);
+});
+
+const isScrolling = ref(false);
+let scrollStopTimer: number | null = null;
+const handleGlobalScroll = () => {
+  isScrolling.value = true;
+  if (scrollStopTimer) {
+    clearTimeout(scrollStopTimer as any);
+  }
+  scrollStopTimer = window.setTimeout(() => {
+    isScrolling.value = false;
+  }, 300);
+};
+
 watch(isMobile, (mobile) => {
   showMobileFilters.value = !mobile;
 });
@@ -2219,6 +2318,15 @@ watch(showLocationDialog, (visible) => {
   if (!visible) {
     locationTarget.value = null;
     locationForm.value.path = "";
+  }
+});
+
+watch(showAddDialog, (visible) => {
+  if (visible) {
+    const def = sessionConfig.value?.["download-dir"] || "";
+    if (def && !addForm.value.downloadDir) {
+      addForm.value.downloadDir = def;
+    }
   }
 });
 
@@ -2457,10 +2565,50 @@ const loadTorrents = async (options: { silent?: boolean } = {}) => {
     loading.value = true;
   }
   try {
-    const result = await api.getTorrents();
-    torrents.value = result.torrents;
+    if (options.silent && isTransmission) {
+      if (!torrents.value.length) {
+        const full = await api.getTorrents();
+        torrents.value = full.torrents;
+        nameLowerCache.clear();
+        defaultTrackerCache.clear();
+        full.torrents.forEach((t) => {
+          nameLowerCache.set(t.id, (t.name || "").toLowerCase());
+          defaultTrackerCache.set(t.id, getDefaultTracker(t));
+        });
+      } else {
+        const inc = await api.getTorrents(undefined, { ids: "recently-active" });
+        const removed = inc.removed || [];
+        if (removed.length) {
+          const removeSet = new Set(removed);
+          torrents.value = torrents.value.filter((t) => !removeSet.has(t.id));
+          selectedIdsState.value = selectedIdsState.value.filter((id) => !removeSet.has(id));
+          selectedTorrents.value = selectedTorrents.value.filter((t) => !removeSet.has(t.id));
+        }
+        const map = new Map<number, Torrent>();
+        torrents.value.forEach((t) => map.set(t.id, t));
+        inc.torrents.forEach((u) => {
+          const cur = map.get(u.id);
+          if (cur) {
+            Object.assign(cur, u);
+          } else {
+            torrents.value.push(u);
+          }
+          nameLowerCache.set(u.id, (u.name || "").toLowerCase());
+          defaultTrackerCache.set(u.id, getDefaultTracker(u));
+        });
+      }
+    } else {
+      const result = await api.getTorrents();
+      torrents.value = result.torrents;
+      nameLowerCache.clear();
+      defaultTrackerCache.clear();
+      result.torrents.forEach((t) => {
+        nameLowerCache.set(t.id, (t.name || "").toLowerCase());
+        defaultTrackerCache.set(t.id, getDefaultTracker(t));
+      });
+    }
     // Update the torrents in system status store
-    systemStatusStore.setTorrents(result.torrents);
+    systemStatusStore.setTorrents([...torrents.value]);
     restoreSelection();
     syncContextMenuTorrent();
     lastFetchedAt.value = dayjs().format("YYYY-MM-DD HH:mm:ss");
@@ -2547,6 +2695,9 @@ const confirmRemoveDialog = async () => {
 const startAutoRefresh = () => {
   stopAutoRefresh();
   refreshTimer = window.setInterval(() => {
+    if (isScrolling.value) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden")
+      return;
     loadTorrents({ silent: true });
   }, REFRESH_INTERVAL);
 };
@@ -3685,6 +3836,7 @@ onMounted(() => {
   startAutoRefresh();
   window.addEventListener("click", hideContextMenu);
   window.addEventListener("scroll", hideContextMenu, true);
+  window.addEventListener("scroll", handleGlobalScroll, true);
   window.addEventListener("keydown", handleKeydown);
 
   // 延迟初始化列头拖拽排序，确保表格完全渲染
@@ -3697,6 +3849,7 @@ onBeforeUnmount(() => {
   stopAutoRefresh();
   window.removeEventListener("click", hideContextMenu);
   window.removeEventListener("scroll", hideContextMenu, true);
+  window.removeEventListener("scroll", handleGlobalScroll, true);
   window.removeEventListener("keydown", handleKeydown);
 
   // 清理拖拽实例
