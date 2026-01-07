@@ -2166,23 +2166,27 @@ const trackerOptions = computed(() => {
     displayName: string;
     host: string;
   }
-  const trackerMap = new Map<string, TrackerOption>(); // displayName -> option
+  const trackerMap = new Map<string, TrackerOption>();
   torrents.value.forEach((torrent) => {
-    torrent.trackers?.forEach((tracker) => {
-      const displayName = getTrackerDisplayName(tracker.announce);
-      const host = getTrackerHost(tracker.announce);
-
-      if (!trackerMap.has(displayName)) {
-        // 如果 displayName 和 host 不同，说明有中文映射，显示格式为 "中文名 (host)"
-        const label = displayName !== host ? `${displayName} (${host})` : host;
-        trackerMap.set(displayName, {
-          label,
-          value: displayName,
-          displayName,
-          host,
-        });
-      }
+    const list = torrent.trackers || [];
+    const recognized = list.find((tr) => {
+      const dn = getTrackerDisplayName(tr.announce);
+      const h = getTrackerHost(tr.announce);
+      return dn !== h;
     });
+    const chosen = recognized || list[0];
+    if (!chosen) return;
+    const displayName = getTrackerDisplayName(chosen.announce);
+    const host = getTrackerHost(chosen.announce);
+    if (!trackerMap.has(displayName)) {
+      const label = displayName !== host ? `${displayName} (${host})` : host;
+      trackerMap.set(displayName, {
+        label,
+        value: displayName,
+        displayName,
+        host,
+      });
+    }
   });
   return Array.from(trackerMap.values()).sort((a, b) =>
     a.label.localeCompare(b.label)

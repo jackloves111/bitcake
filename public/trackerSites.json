@@ -64,7 +64,7 @@
 		"trackers": ["nicept"]
 	}, {
 		"name": "肉丝",
-		"trackers": ["rousipt"]
+		"trackers": ["rousi"]
 	}, {
 		"name": "熊猫",
 		"trackers": ["pandapt"]
@@ -81,7 +81,7 @@
 		"name": "猫站",
 		"trackers": ["pterclub"]
 	}, {
-		"name": "TTG",
+		"name": "听听歌",
 		"trackers": ["totheglory"]
 	}, {
 		"name": "青蛙",
@@ -317,5 +317,11 @@
 	}, {
 		"name": "学校",
 		"trackers": ["btschool"]
+	}, {
+		"name": "PT空间",
+		"trackers": ["ptzone"]
+	}, {
+		"name": "雨",
+		"trackers": ["raingfh"]
 	}]
 }
