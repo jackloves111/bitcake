@@ -12,7 +12,7 @@ import { qbittorrentClient } from './qbittorrentClient'
 import { isTransmission, torrentApiBase } from '@/config/torrentClient'
 
 interface GetTorrentsOptions {
-  ids?: number[]
+  ids?: number[] | 'recently-active'
 }
 
 export interface AddTorrentPayload {
@@ -66,7 +66,7 @@ const encodeFileToBase64 = async (file: File) => {
 }
 
 interface TorrentService {
-  getTorrents(fields?: string[], options?: GetTorrentsOptions): Promise<{ torrents: Torrent[] }>
+  getTorrents(fields?: string[], options?: GetTorrentsOptions): Promise<{ torrents: Torrent[]; removed?: number[] }>
   addTorrent(payload: AddTorrentPayload): Promise<void>
   startTorrents(ids: number[]): Promise<void>
   stopTorrents(ids: number[]): Promise<void>
@@ -130,7 +130,7 @@ const transmissionService: TorrentService = {
       payload.ids = options.ids
     }
 
-    return transmissionClient.request<{ torrents: Torrent[] }>('torrent-get', payload).then(result => {
+    return transmissionClient.request<{ torrents: Torrent[]; removed?: number[] }>('torrent-get', payload).then(result => {
       // 为每个种子计算流行度并提取分类信息
       if (result.torrents) {
         result.torrents.forEach(torrent => {
@@ -694,7 +694,7 @@ const qbittorrentService: TorrentService = {
   async getTorrents(_fields, options) {
     await qbEnsureAuth()
     let torrents: QBTorrentInfo[] = []
-    if (options?.ids && options.ids.length) {
+    if (options?.ids && Array.isArray(options.ids) && options.ids.length) {
       const hashes = await qbResolveHashes(options.ids)
       if (!hashes.length) {
         return { torrents: [] }
@@ -704,6 +704,7 @@ const qbittorrentService: TorrentService = {
         `/torrents/info?hashes=${joined}`
       )
     } else {
+      // qBittorrent 不支持 'recently-active'，退化为全量列表
       torrents = await qbittorrentClient.get<QBTorrentInfo[]>('/torrents/info')
       qbHashToId.clear()
       qbIdToHash.clear()
