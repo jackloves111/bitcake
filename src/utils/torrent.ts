@@ -7,8 +7,7 @@ interface TrackerSitesConfig {
   sites: TrackerSite[]
 }
 
-// 构建 tracker host 到站点名称的映射
-const trackerToSiteMap = new Map<string, string>()
+const trackerKeywords: Array<{ keyword: string; siteName: string }> = []
 let configLoaded = false
 let configLoading: Promise<void> | null = null
 
@@ -33,11 +32,10 @@ async function loadTrackerSitesConfig(): Promise<void> {
       }
       const config: TrackerSitesConfig = await response.json()
 
-      // 清空并重新构建映射
-      trackerToSiteMap.clear()
+      trackerKeywords.splice(0, trackerKeywords.length)
       config.sites.forEach(site => {
         site.trackers.forEach(tracker => {
-          trackerToSiteMap.set(tracker.toLowerCase(), site.name)
+          trackerKeywords.push({ keyword: tracker.toLowerCase(), siteName: site.name })
         })
       })
 
@@ -63,13 +61,24 @@ export const getTrackerHost = (announce: string): string => {
   }
 }
 
+const findSiteNameByAnnounce = (announce: string): string | null => {
+  const host = getTrackerHost(announce).toLowerCase()
+  const full = announce.toLowerCase()
+  for (const { keyword, siteName } of trackerKeywords) {
+    if (host.includes(keyword) || full.includes(keyword)) {
+      return siteName
+    }
+  }
+  return null
+}
+
 /**
  * 获取 tracker 的显示名称
  * 如果配置中有站点映射则返回站点名称，否则返回 tracker host
  */
 export const getTrackerDisplayName = (announce: string): string => {
   const host = getTrackerHost(announce)
-  const siteName = trackerToSiteMap.get(host.toLowerCase())
+  const siteName = findSiteNameByAnnounce(announce)
   return siteName || host
 }
 
@@ -79,7 +88,7 @@ export const getTrackerDisplayName = (announce: string): string => {
 export const matchesTrackerFilter = (announce: string, filter: string): boolean => {
   if (!filter) return true
   const host = getTrackerHost(announce)
-  const siteName = trackerToSiteMap.get(host.toLowerCase())
+  const siteName = findSiteNameByAnnounce(announce)
   // 如果有站点名称，则按站点名称匹配，否则按 host 匹配
   return siteName ? siteName === filter : host === filter
 }
@@ -97,6 +106,6 @@ export const ensureTrackerConfigLoaded = async (): Promise<void> => {
 export const reloadTrackerSitesConfig = async (): Promise<void> => {
   configLoaded = false
   configLoading = null
-  trackerToSiteMap.clear()
+  trackerKeywords.splice(0, trackerKeywords.length)
   await loadTrackerSitesConfig()
 }

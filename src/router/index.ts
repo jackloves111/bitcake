@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useConnectionStore } from '@/stores/connection'
 import { isTransmission } from '@/config/torrentClient'
@@ -58,7 +58,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(resolveBase()),
+  history: createWebHashHistory(resolveBase()),
   routes,
 })
 
