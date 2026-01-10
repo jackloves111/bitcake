@@ -41,7 +41,7 @@ export const statusToUrl = (status: StatusFilter): string => {
 
 export const urlToStatus = (urlParam: string | null): StatusFilter => {
   if (!urlParam) return 'all'
-  return urlParamToStatus[urlParam] || 'all'
+  return urlParamToStatus[urlParam] ?? 'all'
 }
 
 export const useFilterStore = defineStore('filter', () => {
