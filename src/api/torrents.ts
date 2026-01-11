@@ -540,7 +540,7 @@ const qbStateMap: Record<string, TorrentStatus> = {
 
 const resolveQbStatus = (state: string): TorrentStatus => {
   // 调试：输出原始状态
-  
+  // 优先处理暂停/停止等显式状态
 
   // 精确匹配
   if (qbStateMap[state]) {
@@ -552,7 +552,10 @@ const resolveQbStatus = (state: string): TorrentStatus => {
   const lowerState = state.toLowerCase()
   let result: TorrentStatus
 
-  if (lowerState.includes('download') || lowerState.includes('dl')) {
+  // 优先识别暂停/停止，避免 "pausedDL/pausedUP" 被误判为下载/做种
+  if (lowerState.includes('paus') || lowerState.includes('stop')) {
+    result = TorrentStatusEnum.STOPPED
+  } else if (lowerState.includes('download') || lowerState.includes('dl')) {
     result = TorrentStatusEnum.DOWNLOAD
   } else if (lowerState.includes('upload') || lowerState.includes('up') || lowerState.includes('seed')) {
     result = TorrentStatusEnum.SEED
@@ -560,8 +563,6 @@ const resolveQbStatus = (state: string): TorrentStatus => {
     result = TorrentStatusEnum.CHECK
   } else if (lowerState.includes('queue') || lowerState.includes('stall')) {
     result = TorrentStatusEnum.DOWNLOAD_WAIT
-  } else if (lowerState.includes('paus') || lowerState.includes('stop')) {
-    result = TorrentStatusEnum.STOPPED
   } else {
     // 默认为停止
     console.warn(`Unknown qBittorrent state: ${state}`)
@@ -959,6 +960,12 @@ const qbittorrentService: TorrentService = {
       qbittorrentClient.get<string>('/app/version'),
     ])
     const toKB = (value?: number) => (value ? Math.round(value / QB_KB) : 0)
+    const encToString = (value?: number): 'required' | 'preferred' | 'tolerated' => {
+      // qBittorrent: 0=Required, 1=Preferred, 2=Disabled(Allow plain), 映射到 Transmission 风格
+      if (value === 0) return 'required'
+      if (value === 2) return 'tolerated'
+      return 'preferred'
+    }
     const config: SessionConfig = {
       'alt-speed-down': toKB(preferences.alt_dl_speed_limit),
       'alt-speed-enabled': !!preferences.use_alt_speed_limits,
@@ -974,9 +981,9 @@ const qbittorrentService: TorrentService = {
       'start-added-torrents': !preferences.add_paused_enabled,
       'trash-original-torrent-files': false,
       'speed-limit-down': toKB(preferences.dl_limit),
-      'speed-limit-down-enabled': !!preferences.dl_limit && preferences.dl_limit > 0,
+      'speed-limit-down-enabled': !!preferences.dl_limit_enabled,
       'speed-limit-up': toKB(preferences.up_limit),
-      'speed-limit-up-enabled': !!preferences.up_limit && preferences.up_limit > 0,
+      'speed-limit-up-enabled': !!preferences.up_limit_enabled,
       'seedRatioLimit': preferences.max_ratio || 0,
       'seedRatioLimited': (preferences.max_ratio || 0) > 0,
       'seedIdleLimit': preferences.max_seeding_time || 0,
@@ -992,7 +999,7 @@ const qbittorrentService: TorrentService = {
       'lpd-enabled': !!preferences.lsd,
       'pex-enabled': !!preferences.pex,
       'utp-enabled': !!preferences.uTP,
-      encryption: 'preferred',
+      encryption: encToString(preferences.encryption),
       'download-queue-size': preferences.max_active_downloads || 0,
       'download-queue-enabled': (preferences.max_active_downloads || 0) > 0,
       'seed-queue-size': preferences.max_active_uploads || 0,
@@ -1037,6 +1044,8 @@ const qbittorrentService: TorrentService = {
     // 速度限制
     if ('speed-limit-down' in params) qbParams.dl_limit = (params['speed-limit-down'] || 0) * QB_KB
     if ('speed-limit-up' in params) qbParams.up_limit = (params['speed-limit-up'] || 0) * QB_KB
+    if ('speed-limit-down-enabled' in params) qbParams.dl_limit_enabled = !!params['speed-limit-down-enabled']
+    if ('speed-limit-up-enabled' in params) qbParams.up_limit_enabled = !!params['speed-limit-up-enabled']
 
     // 备用速度限制
     if ('alt-speed-enabled' in params) qbParams.use_alt_speed_limits = params['alt-speed-enabled']
