@@ -532,7 +532,7 @@ const handleLogout = async () => {
   }
 
   .content-container {
-    height: auto;
+    height: calc(100vh - 60px);
     min-height: calc(100vh - 60px);
     flex-direction: column;
   }
