@@ -540,12 +540,11 @@ const qbStateMap: Record<string, TorrentStatus> = {
 
 const resolveQbStatus = (state: string): TorrentStatus => {
   // 调试：输出原始状态
-  console.log('qBittorrent state:', state)
+  // 优先处理暂停/停止等显式状态
 
   // 精确匹配
   if (qbStateMap[state]) {
     const mapped = qbStateMap[state]
-    console.log('  → Mapped to:', mapped)
     return mapped
   }
 
@@ -553,7 +552,10 @@ const resolveQbStatus = (state: string): TorrentStatus => {
   const lowerState = state.toLowerCase()
   let result: TorrentStatus
 
-  if (lowerState.includes('download') || lowerState.includes('dl')) {
+  // 优先识别暂停/停止，避免 "pausedDL/pausedUP" 被误判为下载/做种
+  if (lowerState.includes('paus') || lowerState.includes('stop')) {
+    result = TorrentStatusEnum.STOPPED
+  } else if (lowerState.includes('download') || lowerState.includes('dl')) {
     result = TorrentStatusEnum.DOWNLOAD
   } else if (lowerState.includes('upload') || lowerState.includes('up') || lowerState.includes('seed')) {
     result = TorrentStatusEnum.SEED
@@ -561,15 +563,12 @@ const resolveQbStatus = (state: string): TorrentStatus => {
     result = TorrentStatusEnum.CHECK
   } else if (lowerState.includes('queue') || lowerState.includes('stall')) {
     result = TorrentStatusEnum.DOWNLOAD_WAIT
-  } else if (lowerState.includes('paus') || lowerState.includes('stop')) {
-    result = TorrentStatusEnum.STOPPED
   } else {
     // 默认为停止
     console.warn(`Unknown qBittorrent state: ${state}`)
     result = TorrentStatusEnum.STOPPED
   }
 
-  console.log('  → Fuzzy matched to:', result)
   return result
 }
 
@@ -788,46 +787,66 @@ const qbittorrentService: TorrentService = {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(`/torrents/start?hashes=${encodeURIComponent(hashes.join('|'))}`)
+    const body = qbittorrentClient.buildFormData({ hashes: hashes.join('|') })
+    await qbittorrentClient.post('/torrents/resume', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async stopTorrents(ids) {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(`/torrents/stop?hashes=${encodeURIComponent(hashes.join('|'))}`)
+    const body = qbittorrentClient.buildFormData({ hashes: hashes.join('|') })
+    await qbittorrentClient.post('/torrents/pause', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async removeTorrents(ids, deleteLocalData = false) {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(
-      `/torrents/delete?hashes=${encodeURIComponent(hashes.join('|'))}&deleteFiles=${deleteLocalData}`
-    )
+    const body = qbittorrentClient.buildFormData({
+      hashes: hashes.join('|'),
+      deleteFiles: deleteLocalData,
+    })
+    await qbittorrentClient.post('/torrents/delete', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async verifyTorrents(ids) {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(`/torrents/recheck?hashes=${encodeURIComponent(hashes.join('|'))}`)
+    const body = qbittorrentClient.buildFormData({ hashes: hashes.join('|') })
+    await qbittorrentClient.post('/torrents/recheck', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async reannounceTorrents(ids) {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(`/torrents/reannounce?hashes=${encodeURIComponent(hashes.join('|'))}`)
+    const body = qbittorrentClient.buildFormData({ hashes: hashes.join('|') })
+    await qbittorrentClient.post('/torrents/reannounce', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async setTorrentLocation(ids, location) {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(
-      `/torrents/setLocation?hashes=${encodeURIComponent(hashes.join('|'))}&location=${encodeURIComponent(location)}`
-    )
+    const body = qbittorrentClient.buildFormData({
+      hashes: hashes.join('|'),
+      location,
+    })
+    await qbittorrentClient.post('/torrents/setLocation', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async setTorrents(ids, params) {
@@ -837,16 +856,24 @@ const qbittorrentService: TorrentService = {
     if ('downloadLimited' in params || 'downloadLimit' in params) {
       const limited = params.downloadLimited !== false
       const limit = params.downloadLimit ? Number(params.downloadLimit) * QB_KB : 0
-      await qbittorrentClient.post(
-        `/torrents/setDownloadLimit?hashes=${encodeURIComponent(hashes.join('|'))}&limit=${limited ? limit : 0}`
-      )
+      const body = qbittorrentClient.buildFormData({
+        hashes: hashes.join('|'),
+        limit: limited ? limit : 0,
+      })
+      await qbittorrentClient.post('/torrents/setDownloadLimit', body, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
     }
     if ('uploadLimited' in params || 'uploadLimit' in params) {
       const limited = params.uploadLimited !== false
       const limit = params.uploadLimit ? Number(params.uploadLimit) * QB_KB : 0
-      await qbittorrentClient.post(
-        `/torrents/setUploadLimit?hashes=${encodeURIComponent(hashes.join('|'))}&limit=${limited ? limit : 0}`
-      )
+      const body = qbittorrentClient.buildFormData({
+        hashes: hashes.join('|'),
+        limit: limited ? limit : 0,
+      })
+      await qbittorrentClient.post('/torrents/setUploadLimit', body, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
     }
     if (params['files-wanted']?.length || params['files-unwanted']?.length) {
       const targetHash = hashes[0]
@@ -854,14 +881,24 @@ const qbittorrentService: TorrentService = {
         return
       }
       if (params['files-wanted']?.length) {
-        await qbittorrentClient.post(
-          `/torrents/filePrio?hash=${targetHash}&id=${encodeURIComponent(params['files-wanted'].join('|'))}&priority=1`
-        )
+        const body = qbittorrentClient.buildFormData({
+          hash: targetHash,
+          id: params['files-wanted'].join('|'),
+          priority: 1,
+        })
+        await qbittorrentClient.post('/torrents/filePrio', body, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
       }
       if (params['files-unwanted']?.length) {
-        await qbittorrentClient.post(
-          `/torrents/filePrio?hash=${targetHash}&id=${encodeURIComponent(params['files-unwanted'].join('|'))}&priority=0`
-        )
+        const body = qbittorrentClient.buildFormData({
+          hash: targetHash,
+          id: params['files-unwanted'].join('|'),
+          priority: 0,
+        })
+        await qbittorrentClient.post('/torrents/filePrio', body, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
       }
     }
   },
@@ -923,6 +960,12 @@ const qbittorrentService: TorrentService = {
       qbittorrentClient.get<string>('/app/version'),
     ])
     const toKB = (value?: number) => (value ? Math.round(value / QB_KB) : 0)
+    const encToString = (value?: number): 'required' | 'preferred' | 'tolerated' => {
+      // qBittorrent: 0=Required, 1=Preferred, 2=Disabled(Allow plain), 映射到 Transmission 风格
+      if (value === 0) return 'required'
+      if (value === 2) return 'tolerated'
+      return 'preferred'
+    }
     const config: SessionConfig = {
       'alt-speed-down': toKB(preferences.alt_dl_speed_limit),
       'alt-speed-enabled': !!preferences.use_alt_speed_limits,
@@ -938,9 +981,9 @@ const qbittorrentService: TorrentService = {
       'start-added-torrents': !preferences.add_paused_enabled,
       'trash-original-torrent-files': false,
       'speed-limit-down': toKB(preferences.dl_limit),
-      'speed-limit-down-enabled': !!preferences.dl_limit && preferences.dl_limit > 0,
+      'speed-limit-down-enabled': !!preferences.dl_limit_enabled,
       'speed-limit-up': toKB(preferences.up_limit),
-      'speed-limit-up-enabled': !!preferences.up_limit && preferences.up_limit > 0,
+      'speed-limit-up-enabled': !!preferences.up_limit_enabled,
       'seedRatioLimit': preferences.max_ratio || 0,
       'seedRatioLimited': (preferences.max_ratio || 0) > 0,
       'seedIdleLimit': preferences.max_seeding_time || 0,
@@ -956,7 +999,7 @@ const qbittorrentService: TorrentService = {
       'lpd-enabled': !!preferences.lsd,
       'pex-enabled': !!preferences.pex,
       'utp-enabled': !!preferences.uTP,
-      encryption: 'preferred',
+      encryption: encToString(preferences.encryption),
       'download-queue-size': preferences.max_active_downloads || 0,
       'download-queue-enabled': (preferences.max_active_downloads || 0) > 0,
       'seed-queue-size': preferences.max_active_uploads || 0,
@@ -996,16 +1039,18 @@ const qbittorrentService: TorrentService = {
     if ('download-dir' in params) qbParams.save_path = params['download-dir']
     if ('incomplete-dir' in params) qbParams.temp_path = params['incomplete-dir']
     if ('incomplete-dir-enabled' in params) qbParams.temp_path_enabled = params['incomplete-dir-enabled']
-    if ('start-added-torrents' in params) qbParams.start_paused_enabled = !params['start-added-torrents']
+    if ('start-added-torrents' in params) qbParams.add_paused_enabled = !params['start-added-torrents']
 
     // 速度限制
     if ('speed-limit-down' in params) qbParams.dl_limit = (params['speed-limit-down'] || 0) * QB_KB
     if ('speed-limit-up' in params) qbParams.up_limit = (params['speed-limit-up'] || 0) * QB_KB
+    if ('speed-limit-down-enabled' in params) qbParams.dl_limit_enabled = !!params['speed-limit-down-enabled']
+    if ('speed-limit-up-enabled' in params) qbParams.up_limit_enabled = !!params['speed-limit-up-enabled']
 
     // 备用速度限制
-    if ('alt-speed-enabled' in params) qbParams.scheduler_enabled = params['alt-speed-enabled']
-    if ('alt-speed-down' in params) qbParams.alt_dl_limit = (params['alt-speed-down'] || 0) * QB_KB
-    if ('alt-speed-up' in params) qbParams.alt_up_limit = (params['alt-speed-up'] || 0) * QB_KB
+    if ('alt-speed-enabled' in params) qbParams.use_alt_speed_limits = params['alt-speed-enabled']
+    if ('alt-speed-down' in params) qbParams.alt_dl_speed_limit = (params['alt-speed-down'] || 0) * QB_KB
+    if ('alt-speed-up' in params) qbParams.alt_up_speed_limit = (params['alt-speed-up'] || 0) * QB_KB
 
     // 分享率和做种设置
     if ('seedRatioLimit' in params) qbParams.max_ratio = params['seedRatioLimit']
@@ -1092,9 +1137,13 @@ const qbittorrentService: TorrentService = {
     await qbEnsureAuth()
     const hashes = await qbResolveHashes(ids)
     if (!hashes.length) return
-    await qbittorrentClient.post(
-      `/torrents/setCategory?hashes=${encodeURIComponent(hashes.join('|'))}&category=${encodeURIComponent(category)}`
-    )
+    const body = qbittorrentClient.buildFormData({
+      hashes: hashes.join('|'),
+      category,
+    })
+    await qbittorrentClient.post('/torrents/setCategory', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
   },
 
   async getCategories() {
