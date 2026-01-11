@@ -94,13 +94,20 @@
             </el-row>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
+                <el-form-item label="启用备用限速">
+                  <el-switch v-model="settings['alt-speed-enabled']" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="16">
+              <el-col :xs="24" :md="12">
                 <el-form-item label="备用下载限速 (KB/s)">
-                  <el-input-number v-model="settings['alt-speed-down']" :min="0" class="full-width" />
+                  <el-input-number v-model="settings['alt-speed-down']" :disabled="!settings['alt-speed-enabled']" :min="0" class="full-width" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
                 <el-form-item label="备用上传限速 (KB/s)">
-                  <el-input-number v-model="settings['alt-speed-up']" :min="0" class="full-width" />
+                  <el-input-number v-model="settings['alt-speed-up']" :disabled="!settings['alt-speed-enabled']" :min="0" class="full-width" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -479,6 +486,7 @@ const editableFields: (keyof SessionConfig)[] = [
   'speed-limit-down-enabled',
   'speed-limit-up',
   'speed-limit-up-enabled',
+  'alt-speed-enabled',
   'alt-speed-down',
   'alt-speed-up',
   'seedRatioLimited',
@@ -532,6 +540,12 @@ const loadSettings = async () => {
     webUiBanDuration.value = sessionData['web-ui-ban-duration'] || 3600
     alternativeWebuiEnabled.value = sessionData['alternative-webui-enabled'] || false
     alternativeWebuiPath.value = sessionData['alternative-webui-path'] || ''
+
+    // Fallback enable logic for speed limits
+    const s = settings.value
+    s['speed-limit-up-enabled'] = (!!s['speed-limit-up-enabled']) || ((s['speed-limit-up'] || 0) > 0)
+    s['speed-limit-down-enabled'] = (!!s['speed-limit-down-enabled']) || ((s['speed-limit-down'] || 0) > 0)
+    s['alt-speed-enabled'] = (!!s['alt-speed-enabled']) || (((s['alt-speed-down'] || 0) > 0) || ((s['alt-speed-up'] || 0) > 0))
   } catch (error: any) {
     ElMessage.error(`加载设置失败: ${error.message}`)
   } finally {
@@ -544,6 +558,18 @@ const saveSettings = async () => {
   try {
     const updates: Partial<SessionConfig> = {}
     const savedStartAdded = settings.value['start-added-torrents']
+    const s = settings.value
+
+    if (s['speed-limit-up-enabled'] === false && (s['speed-limit-up'] || 0) > 0) {
+      s['speed-limit-up'] = 0
+    }
+    if (s['speed-limit-down-enabled'] === false && (s['speed-limit-down'] || 0) > 0) {
+      s['speed-limit-down'] = 0
+    }
+    if (s['alt-speed-enabled'] === false) {
+      if ((s['alt-speed-up'] || 0) > 0) s['alt-speed-up'] = 0
+      if ((s['alt-speed-down'] || 0) > 0) s['alt-speed-down'] = 0
+    }
 
     // Save basic editable fields
     editableFields.forEach((key) => {
