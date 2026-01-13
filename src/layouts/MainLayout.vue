@@ -252,18 +252,16 @@ const uploadLimitKBps = computed(() => {
   const c = sessionConfig.value;
   if (!c) return null;
   if (c['alt-speed-enabled']) return c['alt-speed-up'] ?? null;
-  const up = c['speed-limit-up'] ?? 0;
   const enabled = !!c['speed-limit-up-enabled'];
-  if (enabled || up > 0) return up || null;
+  if (enabled) return c['speed-limit-up'] ?? null;
   return null;
 });
 const downloadLimitKBps = computed(() => {
   const c = sessionConfig.value;
   if (!c) return null;
   if (c['alt-speed-enabled']) return c['alt-speed-down'] ?? null;
-  const down = c['speed-limit-down'] ?? 0;
   const enabled = !!c['speed-limit-down-enabled'];
-  if (enabled || down > 0) return down || null;
+  if (enabled) return c['speed-limit-down'] ?? null;
   return null;
 });
 const formatSpeedCompact = (bytesPerSecond: number): string => {
@@ -271,8 +269,8 @@ const formatSpeedCompact = (bytesPerSecond: number): string => {
   return `${formatBytes(bytesPerSecond).replace(" ", "")}/s`;
 };
 const formatLimitText = (kbps: number | null): string | null => {
-  if (kbps == null) return null;
-  return formatSpeedCompact(kbps * 1024);
+  if (kbps == null || kbps === 0) return null;
+  return Math.floor(kbps).toString();
 };
 const uploadSpeedText = computed(() => {
   const bps = sessionStats.value?.uploadSpeed || 0;

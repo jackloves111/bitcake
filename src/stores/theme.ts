@@ -13,9 +13,13 @@ export const useThemeStore = defineStore('theme', () => {
     if (savedTheme === 'fresh' || savedTheme === 'default') {
       currentTheme.value = 'green'
       localStorage.setItem('app-theme', 'green')
+      applyTheme('green')
     } else if (savedTheme === 'green' || savedTheme === 'blue' || savedTheme === 'pink') {
       currentTheme.value = savedTheme
       applyTheme(savedTheme)
+    } else {
+      // 首次访问，应用默认主题
+      applyTheme('green')
     }
   }
 

@@ -241,6 +241,9 @@
         查看详情
       </button>
       <button @click="handleContextAction('limit')">限速设置</button>
+      <div class="context-menu-divider"></div>
+      <button @click="handleContextAction('copy')">复制文本</button>
+      <div class="context-menu-divider"></div>
       <button class="danger" @click="handleContextAction('delete')">
         删除{{ contextMenuTargets.length > 1 ? "选中" : "" }}
       </button>
@@ -2682,6 +2685,7 @@ const handleContextAction = (
     | "limit"
     | "category"
     | "labels"
+    | "copy"
 ) => {
   const targets = [...contextMenuTargets.value];
   if (!targets.length) return;
@@ -2742,6 +2746,17 @@ const handleContextAction = (
       openBatchLimitDialogWithTargets(targets);
     } else {
       openSingleLimitDialog(targets[0]!);
+    }
+    return;
+  }
+  if (action === "copy") {
+    const selectedText = window.getSelection()?.toString() || "";
+    if (selectedText) {
+      navigator.clipboard.writeText(selectedText).then(() => {
+        ElMessage.success("已复制到剪贴板");
+      }).catch(() => {
+        ElMessage.error("复制失败");
+      });
     }
   }
 };
@@ -4192,6 +4207,12 @@ onBeforeUnmount(() => {
 
 .context-menu button.danger {
   color: #f56c6c;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background-color: #ebeef5;
+  margin: 4px 0;
 }
 
 .table-container {
