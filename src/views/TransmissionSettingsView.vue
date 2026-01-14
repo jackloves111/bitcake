@@ -767,10 +767,6 @@ onMounted(() => {
   max-width: 1200px;
 }
 
-.compact-form :deep(.el-form-item) {
-  margin-bottom: 16px;
-}
-
 .inline-row {
   display: flex;
   align-items: center;
