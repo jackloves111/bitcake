@@ -206,7 +206,12 @@
             class="compact-form"
           >
             <el-row :gutter="16">
-              <el-col :xs="24" :md="12">
+              <el-col :xs="24" :md="8">
+                <el-form-item label="使用 Peer 固定端口">
+                  <el-input-number v-model="settings['peer-port']" :min="1" :max="65535" class="full-width" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :md="8">
                 <el-form-item label="端口连通性">
                   <div class="port-test">
                     <el-button size="small" :loading="testingPort" @click="handleTestPort">
@@ -223,18 +228,13 @@
                   </div>
                 </el-form-item>
               </el-col>
-            </el-row>
-            <el-row :gutter="16">
-              <el-col :xs="24" :md="8">
-                <el-form-item label="使用 Peer 固定端口">
-                  <el-input-number v-model="settings['peer-port']" :min="1" :max="65535" class="full-width" />
-                </el-form-item>
-              </el-col>
               <el-col :xs="24" :md="8">
                 <el-form-item label="端口映射 (UPnP)">
                   <el-switch v-model="settings['port-forwarding-enabled']" />
                 </el-form-item>
               </el-col>
+            </el-row>
+            <el-row :gutter="16">
               <el-col :xs="24" :md="8">
                 <el-form-item label="启动时随机端口">
                   <el-switch v-model="settings['peer-port-random-on-start']" />
