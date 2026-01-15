@@ -64,7 +64,6 @@ export interface SessionConfig {
   'incomplete-dir-enabled': boolean
   'rename-partial-files': boolean
   'start-added-torrents': boolean
-  'trash-original-torrent-files': boolean
   'speed-limit-down': number
   'speed-limit-down-enabled': boolean
   'speed-limit-up': number

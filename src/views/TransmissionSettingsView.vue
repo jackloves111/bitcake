@@ -3,7 +3,7 @@
     <el-card v-if="isTransmissionClient">
       <template #header>
         <div class="card-header">
-          <span>Transmission 全局设置</span>
+          <span>全局设置</span>
           <div class="header-actions">
             <el-button type="primary" size="small" @click="saveSettings">保存设置</el-button>
             <el-button size="small" @click="loadSettings">重置</el-button>
@@ -24,14 +24,15 @@
             size="small"
             class="compact-form"
           >
+            <el-divider content-position="left">保存路径</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
-                <el-form-item label="下载目录">
+                <el-form-item label="默认保存目录">
                   <el-input v-model="settings['download-dir']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
-                <el-form-item label="未完成目录">
+                <el-form-item label="启用临时目录">
                   <div class="inline-row">
                     <el-switch v-model="settings['incomplete-dir-enabled']" />
                     <el-input
@@ -44,20 +45,16 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">添加行为与扩展名</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="8">
-                <el-form-item label="新增种子自动开始">
+                <el-form-item label="自动开始新添加的种子">
                   <el-switch v-model="settings['start-added-torrents']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="8">
                 <el-form-item label="在未完成的文件名后加上“.part”后缀">
                   <el-switch v-model="settings['rename-partial-files']" />
-                </el-form-item>
-              </el-col>
-              <el-col :xs="24" :md="8">
-                <el-form-item label="删除原始种子文件">
-                  <el-switch v-model="settings['trash-original-torrent-files']" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -74,9 +71,10 @@
             size="small"
             class="compact-form"
           >
+            <el-divider content-position="left">全局速度限制</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
-                <el-form-item label="下载限速 (KB/s)">
+                <el-form-item label="启用最大下载速度限制 (KB/s)">
                   <div class="inline-row">
                     <el-switch v-model="settings['speed-limit-down-enabled']" />
                     <el-input-number
@@ -89,7 +87,7 @@
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
-                <el-form-item label="上传限速 (KB/s)">
+                <el-form-item label="启用最大上传速度限制 (KB/s)">
                   <div class="inline-row">
                     <el-switch v-model="settings['speed-limit-up-enabled']" />
                     <el-input-number
@@ -102,6 +100,7 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">备用速度限制</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
                 <el-form-item label="备用下载限速 (KB/s)">
@@ -114,6 +113,7 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">定时计划</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="8">
                 <el-form-item label="启用备用限速">
@@ -168,9 +168,10 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">分享率与做种限制</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
-                <el-form-item label="分享率限制">
+                <el-form-item label="当种子的分享率达到这个数时，自动停止做种">
                   <div class="inline-row">
                     <el-switch v-model="settings['seedRatioLimited']" />
                     <el-input-number
@@ -184,7 +185,7 @@
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
-                <el-form-item label="做种空闲限制 (分钟)">
+                <el-form-item label="当种子超过这个时间没有流量时，自动停止做种(分钟)">
                   <div class="inline-row">
                     <el-switch v-model="settings['seedIdleLimited']" />
                     <el-input-number
@@ -210,10 +211,28 @@
             size="small"
             class="compact-form"
           >
+            <el-divider content-position="left">端口与映射</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="8">
-                <el-form-item label="Peer 端口">
+                <el-form-item label="使用 Peer 固定端口">
                   <el-input-number v-model="settings['peer-port']" :min="1" :max="65535" class="full-width" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :md="8">
+                <el-form-item label="端口连通性">
+                  <div class="port-test">
+                    <el-button size="small" :loading="testingPort" @click="handleTestPort">
+                      测试端口
+                    </el-button>
+                    <el-tag
+                      v-if="portTestResult !== null"
+                      :type="portTestResult ? 'success' : 'danger'"
+                      effect="plain"
+                      size="small"
+                    >
+                      {{ portTestResult ? '端口开放' : '端口关闭' }}
+                    </el-tag>
+                  </div>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="8">
@@ -221,20 +240,23 @@
                   <el-switch v-model="settings['port-forwarding-enabled']" />
                 </el-form-item>
               </el-col>
+            </el-row>
+            <el-row :gutter="16">
               <el-col :xs="24" :md="8">
                 <el-form-item label="启动时随机端口">
                   <el-switch v-model="settings['peer-port-random-on-start']" />
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">连接上限与加密</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
-                <el-form-item label="全局 Peer 上限">
+                <el-form-item label="全局 Peer 链接数限制为">
                   <el-input-number v-model="settings['peer-limit-global']" :min="1" class="full-width" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
-                <el-form-item label="单种 Peer 上限">
+                <el-form-item label="单个种子 Peer 最大链接数">
                   <el-input-number v-model="settings['peer-limit-per-torrent']" :min="1" class="full-width" />
                 </el-form-item>
               </el-col>
@@ -252,23 +274,6 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :md="12">
-                <el-form-item label="端口连通性">
-                  <div class="port-test">
-                    <el-button size="small" :loading="testingPort" @click="handleTestPort">
-                      测试端口
-                    </el-button>
-                    <el-tag
-                      v-if="portTestResult !== null"
-                      :type="portTestResult ? 'success' : 'danger'"
-                      effect="plain"
-                      size="small"
-                    >
-                      {{ portTestResult ? '端口开放' : '端口关闭' }}
-                    </el-tag>
-                  </div>
-                </el-form-item>
-              </el-col>
             </el-row>
           </el-form>
         </el-tab-pane>
@@ -283,24 +288,25 @@
             size="small"
             class="compact-form"
           >
+            <el-divider content-position="left">用户发现与交换</el-divider>
             <el-row :gutter="16">
               <el-col :xs="12" :md="6">
-                <el-form-item label="DHT">
+                <el-form-item label="启用分布式哈希表 (DHT)">
                   <el-switch v-model="settings['dht-enabled']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="12" :md="6">
-                <el-form-item label="PEX">
+                <el-form-item label="启用用户交换 (PEX)">
                   <el-switch v-model="settings['pex-enabled']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="12" :md="6">
-                <el-form-item label="LPD">
+                <el-form-item label="启用本地用户发现 (LPD)">
                   <el-switch v-model="settings['lpd-enabled']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="12" :md="6">
-                <el-form-item label="uTP">
+                <el-form-item label="启用uTP">
                   <el-switch v-model="settings['utp-enabled']" />
                 </el-form-item>
               </el-col>
@@ -318,9 +324,10 @@
             size="small"
             class="compact-form"
           >
+            <el-divider content-position="left">队列上限</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
-                <el-form-item label="下载队列大小">
+                <el-form-item label="启用下载队列，最大同时下载数">
                   <div class="inline-row">
                     <el-switch v-model="settings['download-queue-enabled']" />
                     <el-input-number
@@ -333,7 +340,7 @@
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
-                <el-form-item label="做种队列大小">
+                <el-form-item label="启用上传队列，最大同时上传数">
                   <div class="inline-row">
                     <el-switch v-model="settings['seed-queue-enabled']" />
                     <el-input-number
@@ -346,14 +353,15 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">卡住任务判定</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
-                <el-form-item label="检测卡住任务">
+                <el-form-item label="检测卡住任务（不计入队列）">
                   <el-switch v-model="settings['queue-stalled-enabled']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="12">
-                <el-form-item label="卡住最小分钟">
+                <el-form-item label="判定卡住的分钟数">
                   <el-input-number v-model="settings['queue-stalled-minutes']" :min="0" class="full-width" />
                 </el-form-item>
               </el-col>
@@ -371,6 +379,7 @@
             size="small"
             class="compact-form"
           >
+            <el-divider content-position="left">认证</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
                 <el-form-item label="需要认证">
@@ -383,6 +392,7 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">白名单</el-divider>
             <el-row :gutter="16">
               <el-col :xs="24" :md="12">
                 <el-form-item label="启用白名单">
@@ -492,7 +502,7 @@ const portTestResult = ref<boolean | null>(null)
 
 const isMobile = useMediaQuery('(max-width: 768px)')
 const formLabelPosition = computed(() => (isMobile.value ? 'top' : 'left'))
-const formLabelWidth = computed(() => (isMobile.value ? 'auto' : '120px'))
+const formLabelWidth = computed(() => (isMobile.value ? 'auto' : '220px'))
 
 const editableFields: (keyof SessionConfig)[] = [
   'download-dir',
@@ -500,7 +510,6 @@ const editableFields: (keyof SessionConfig)[] = [
   'incomplete-dir-enabled',
   'rename-partial-files',
   'start-added-torrents',
-  'trash-original-torrent-files',
   'speed-limit-down',
   'speed-limit-down-enabled',
   'speed-limit-up',
@@ -765,6 +774,12 @@ onMounted(() => {
 
 .compact-form {
   max-width: 1200px;
+}
+
+.compact-form :deep(.el-col) {
+  flex: 0 0 100%;
+  max-width: 100%;
+  width: 100%;
 }
 
 .inline-row {

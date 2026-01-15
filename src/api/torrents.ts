@@ -442,6 +442,9 @@ interface QBPreferences {
   max_active_uploads?: number
   max_active_torrents?: number
   dont_count_slow_torrents?: boolean
+  slow_torrent_dl_rate_threshold?: number
+  slow_torrent_ul_rate_threshold?: number
+  slow_torrent_inactive_timer?: number
   max_ratio?: number
   max_seeding_time?: number
   lsd_enabled?: boolean
@@ -1004,7 +1007,6 @@ const qbittorrentService: TorrentService = {
       'incomplete-dir-enabled': !!preferences.temp_path_enabled,
       'rename-partial-files': !!preferences.incomplete_files_ext,
       'start-added-torrents': !preferences.add_paused_enabled,
-      'trash-original-torrent-files': false,
       'speed-limit-down': toKB(preferences.dl_limit),
       'speed-limit-down-enabled': !!preferences.dl_limit_enabled,
       'speed-limit-up': toKB(preferences.up_limit),
@@ -1053,6 +1055,10 @@ const qbittorrentService: TorrentService = {
       'rpc-authentication-required': false,
       'rpc-username': currentConnection.username || '',
     }
+    ;(config as any)['max-ratio-act'] = (preferences as any).max_ratio_act ?? 0
+    ;(config as any)['slow-torrent-dl-rate-threshold'] = preferences.slow_torrent_dl_rate_threshold || 0
+    ;(config as any)['slow-torrent-ul-rate-threshold'] = preferences.slow_torrent_ul_rate_threshold || 0
+    ;(config as any)['slow-torrent-inactive-timer'] = preferences.slow_torrent_inactive_timer || 0
     return config
   },
 
@@ -1143,6 +1149,10 @@ const qbittorrentService: TorrentService = {
     if ('queue-stalled-enabled' in params) qbParams.queueing_enabled = params['queue-stalled-enabled']
     if ('max-active-torrents' in params) qbParams.max_active_torrents = params['max-active-torrents']
     if ('dont-count-slow-torrents' in params) qbParams.dont_count_slow_torrents = params['dont-count-slow-torrents']
+    if ('slow-torrent-dl-rate-threshold' in params) qbParams.slow_torrent_dl_rate_threshold = params['slow-torrent-dl-rate-threshold']
+    if ('slow-torrent-ul-rate-threshold' in params) qbParams.slow_torrent_ul_rate_threshold = params['slow-torrent-ul-rate-threshold']
+    if ('slow-torrent-inactive-timer' in params) qbParams.slow_torrent_inactive_timer = params['slow-torrent-inactive-timer']
+    if ('max-ratio-act' in params) qbParams.max_ratio_act = params['max-ratio-act']
 
     // WebUI 设置
     if ('web-ui-username' in params) qbParams.web_ui_username = params['web-ui-username']
