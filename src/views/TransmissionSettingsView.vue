@@ -46,18 +46,13 @@
             </el-row>
             <el-row :gutter="16">
               <el-col :xs="24" :md="8">
-                <el-form-item label="新增种子自动开始">
+                <el-form-item label="自动开始新添加的种子">
                   <el-switch v-model="settings['start-added-torrents']" />
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="8">
                 <el-form-item label="在未完成的文件名后加上“.part”后缀">
                   <el-switch v-model="settings['rename-partial-files']" />
-                </el-form-item>
-              </el-col>
-              <el-col :xs="24" :md="8">
-                <el-form-item label="删除原始种子文件">
-                  <el-switch v-model="settings['trash-original-torrent-files']" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -500,7 +495,6 @@ const editableFields: (keyof SessionConfig)[] = [
   'incomplete-dir-enabled',
   'rename-partial-files',
   'start-added-torrents',
-  'trash-original-torrent-files',
   'speed-limit-down',
   'speed-limit-down-enabled',
   'speed-limit-up',

@@ -1004,7 +1004,6 @@ const qbittorrentService: TorrentService = {
       'incomplete-dir-enabled': !!preferences.temp_path_enabled,
       'rename-partial-files': !!preferences.incomplete_files_ext,
       'start-added-torrents': !preferences.add_paused_enabled,
-      'trash-original-torrent-files': false,
       'speed-limit-down': toKB(preferences.dl_limit),
       'speed-limit-down-enabled': !!preferences.dl_limit_enabled,
       'speed-limit-up': toKB(preferences.up_limit),
