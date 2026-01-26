@@ -194,11 +194,6 @@ html[data-theme="green"] .el-dialog {
   background: var(--fresh-bg-elevated);
 }
 
-html[data-theme="green"] .el-dialog__header {
-  background: linear-gradient(135deg, #f9fafb 0%, #f0fdf4 100%);
-  border-bottom: 1px solid var(--fresh-border-light);
-}
-
 html[data-theme="green"] .el-dialog__title {
   color: var(--fresh-primary);
 }
@@ -690,12 +685,6 @@ html[data-theme="pink"] .el-dialog {
   border-radius: 24px;
   box-shadow: var(--pink-shadow-lg);
   border: 2px solid var(--pink-border-light);
-}
-
-html[data-theme="pink"] .el-dialog__header {
-  background: linear-gradient(135deg, #fff5f9 0%, #ffe4f0 100%);
-  border-bottom: 2px solid var(--pink-border-light);
-  border-radius: 24px 24px 0 0;
 }
 
 html[data-theme="pink"] .el-dialog__title {
