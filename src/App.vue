@@ -500,6 +500,10 @@ html[data-theme="blue"] .tip-content {
   color: rgba(255, 255, 255, 0.95);
 }
 
+html[data-theme="blue"] .el-dialog__title {
+  color: var(--el-color-primary);
+}
+
 /* 可爱粉 */
 :root[data-theme="pink"] {
   /* 主色调 - 粉嫩可爱 */
