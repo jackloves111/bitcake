@@ -194,11 +194,6 @@ html[data-theme="green"] .el-dialog {
   background: var(--fresh-bg-elevated);
 }
 
-html[data-theme="green"] .el-dialog__header {
-  background: linear-gradient(135deg, #f9fafb 0%, #f0fdf4 100%);
-  border-bottom: 1px solid var(--fresh-border-light);
-}
-
 html[data-theme="green"] .el-dialog__title {
   color: var(--fresh-primary);
 }
@@ -505,6 +500,10 @@ html[data-theme="blue"] .tip-content {
   color: rgba(255, 255, 255, 0.95);
 }
 
+html[data-theme="blue"] .el-dialog__title {
+  color: var(--el-color-primary);
+}
+
 /* 可爱粉 */
 :root[data-theme="pink"] {
   /* 主色调 - 粉嫩可爱 */
@@ -690,12 +689,6 @@ html[data-theme="pink"] .el-dialog {
   border-radius: 24px;
   box-shadow: var(--pink-shadow-lg);
   border: 2px solid var(--pink-border-light);
-}
-
-html[data-theme="pink"] .el-dialog__header {
-  background: linear-gradient(135deg, #fff5f9 0%, #ffe4f0 100%);
-  border-bottom: 2px solid var(--pink-border-light);
-  border-radius: 24px 24px 0 0;
 }
 
 html[data-theme="pink"] .el-dialog__title {
