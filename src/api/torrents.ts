@@ -247,6 +247,7 @@ const transmissionService: TorrentService = {
       }
 
       if (changed) {
+        let updated = false
         const sortedTiers = Array.from(tiers.keys()).sort((a, b) => a - b)
         const parts: string[] = []
         for (let i = 0; i < sortedTiers.length; i++) {
@@ -262,19 +263,21 @@ const transmissionService: TorrentService = {
             ids: [torrent.id],
             trackerList,
           })
+          updated = true
         } catch (e) {
           const replacements: Array<[number, string]> = []
           const existing = new Set<string>(trackers.map(tr => tr.announce))
           for (const tr of trackers) {
             if (tr.announce.includes(oldUrl) && typeof tr.id === 'number') {
-              const updated = tr.announce.replace(oldUrl, newUrl)
-              if (!existing.has(updated)) {
-                replacements.push([tr.id, updated])
+              const updatedUrl = tr.announce.replace(oldUrl, newUrl)
+              if (!existing.has(updatedUrl)) {
+                replacements.push([tr.id, updatedUrl])
               } else {
                 await transmissionClient.request('torrent-set', {
                   ids: [torrent.id],
                   trackerRemove: [tr.id],
                 })
+                updated = true
               }
             }
           }
@@ -283,7 +286,11 @@ const transmissionService: TorrentService = {
               ids: [torrent.id],
               trackerReplace: replacements,
             })
+            updated = true
           }
+        }
+        if (updated) {
+          await transmissionClient.request('torrent-reannounce', { ids: [torrent.id] })
         }
       }
     }
@@ -956,6 +963,7 @@ const qbittorrentService: TorrentService = {
     const torrentsData = await qbittorrentService.getTorrents()
     const targetTorrents = torrentsData.torrents.filter((t) => ids.includes(t.id))
 
+    const changedHashes = new Set<string>()
     for (const torrent of targetTorrents) {
       const hash = torrent.hashString
       const trackers = torrent.trackers || []
@@ -969,8 +977,17 @@ const qbittorrentService: TorrentService = {
             newUrl: updatedUrl,
           })
           await qbittorrentClient.post('/torrents/editTracker', formData)
+          changedHashes.add(hash)
         }
       }
+    }
+    if (changedHashes.size) {
+      const body = qbittorrentClient.buildFormData({
+        hashes: Array.from(changedHashes).join('|'),
+      })
+      await qbittorrentClient.post('/torrents/reannounce', body, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
     }
   },
 
