@@ -622,6 +622,7 @@
                       prop="lastAnnounce"
                       :label="t('torrent.lastAnnounce')"
                       width="140"
+                      v-if="isTransmission"
                     />
                   </el-table>
                 </div>
