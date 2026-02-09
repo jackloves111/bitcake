@@ -234,18 +234,57 @@ const transmissionService: TorrentService = {
     for (const torrent of torrents) {
       const trackers = torrent.trackers || []
 
-      const replacements: Array<[number, string]> = []
-      for (const tracker of trackers) {
-        if (tracker.announce.includes(oldUrl) && typeof tracker.id === 'number') {
-          const updatedUrl = tracker.announce.replace(oldUrl, newUrl)
-          replacements.push([tracker.id, updatedUrl])
-        }
+      const tiers = new Map<number, Set<string>>()
+      let changed = false
+      for (const t of trackers) {
+        const tier = typeof t.tier === 'number' ? t.tier : 0
+        const set = tiers.get(tier) || new Set<string>()
+        const nextAnnounce = t.announce.includes(oldUrl)
+          ? (changed = true, t.announce.replace(oldUrl, newUrl))
+          : t.announce
+        set.add(nextAnnounce)
+        tiers.set(tier, set)
       }
-      if (replacements.length) {
-        await transmissionClient.request('torrent-set', {
-          ids: [torrent.id],
-          trackerReplace: replacements,
-        })
+
+      if (changed) {
+        const sortedTiers = Array.from(tiers.keys()).sort((a, b) => a - b)
+        const parts: string[] = []
+        for (let i = 0; i < sortedTiers.length; i++) {
+          const tierVal = sortedTiers[i]
+          if (tierVal === undefined) continue
+          const announces = Array.from(tiers.get(tierVal) || [])
+          parts.push(announces.join('\n'))
+          if (i !== sortedTiers.length - 1) parts.push('')
+        }
+        const trackerList = parts.join('\n')
+        try {
+          await transmissionClient.request('torrent-set', {
+            ids: [torrent.id],
+            trackerList,
+          })
+        } catch (e) {
+          const replacements: Array<[number, string]> = []
+          const existing = new Set<string>(trackers.map(tr => tr.announce))
+          for (const tr of trackers) {
+            if (tr.announce.includes(oldUrl) && typeof tr.id === 'number') {
+              const updated = tr.announce.replace(oldUrl, newUrl)
+              if (!existing.has(updated)) {
+                replacements.push([tr.id, updated])
+              } else {
+                await transmissionClient.request('torrent-set', {
+                  ids: [torrent.id],
+                  trackerRemove: [tr.id],
+                })
+              }
+            }
+          }
+          if (replacements.length) {
+            await transmissionClient.request('torrent-set', {
+              ids: [torrent.id],
+              trackerReplace: replacements,
+            })
+          }
+        }
       }
     }
   },
