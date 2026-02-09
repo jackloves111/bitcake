@@ -601,13 +601,13 @@
                   >
                     <el-table-column
                       prop="tier"
-                      label="Tier"
+                      :label="t('torrent.tier')"
                       width="60"
                       align="center"
                     />
                     <el-table-column
                       prop="announce"
-                      label="Announce URL"
+                      :label="t('torrent.announceUrl')"
                       min-width="200"
                       show-overflow-tooltip
                     />

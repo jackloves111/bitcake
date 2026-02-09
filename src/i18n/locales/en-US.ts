@@ -159,6 +159,8 @@ export default {
     deselectAll: 'Deselect All',
     noFileInfo: 'No file info',
     trackerLabel: 'Tracker',
+    tier: 'Tier',
+    announceUrl: 'Announce URL',
     trackerStatus: 'Status',
     lastAnnounce: 'Last Announce',
     noTracker: 'No tracker configured',
