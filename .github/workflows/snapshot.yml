@@ -68,11 +68,17 @@ jobs:
           echo "TRANSMISSION_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-transmission.zip" >> $GITHUB_ENV
           echo "QBITTORRENT_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip" >> $GITHUB_ENV
 
+      - name: Extract version without v prefix
+        id: version-clean
+        run: |
+          CLEAN_VERSION=${GITHUB_REF_NAME#v}
+          echo "clean_version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
       - name: Create Snapshot Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.package-version.outputs.version }}-${{ steps.commit-id.outputs.short_sha }}
-          name: ${{ steps.package-version.outputs.version }}-${{ steps.commit-id.outputs.short_sha }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.version-clean.outputs.clean_version }}
           body: |
             Automated snapshot build from commit ${{ github.sha }}
 
@@ -82,16 +88,15 @@ jobs:
 
             ## 🐳 Docker Image
             ```bash
-            docker pull ghcr.io/${{ github.repository_owner }}/bitcake:${{ steps.package-version.outputs.version }}-${{ steps.commit-id.outputs.short_sha }}
+            docker pull ghcr.io/${{ github.repository_owner }}/bitcake:${{ steps.version-clean.outputs.clean_version }}
             docker pull ghcr.io/${{ github.repository_owner }}/bitcake:latest
             ```
-          prerelease: true
+          prerelease: false
           files: |
             ${{ env.TRANSMISSION_ZIP }}
             ${{ env.QBITTORRENT_ZIP }}
-
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Docker 镜像构建和推送
       - name: Set up QEMU
@@ -113,8 +118,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/bitcake
           tags: |
-            type=raw,value=${{ steps.package-version.outputs.version }}-${{ steps.commit-id.outputs.short_sha }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.version-clean.outputs.clean_version }}
+            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
