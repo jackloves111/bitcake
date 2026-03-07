@@ -940,6 +940,11 @@ import {
 } from "element-plus";
 import type { TableInstance, TableColumnCtx, Column, CheckboxValueType } from "element-plus";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import "dayjs/locale/zh-cn";
+import "dayjs/locale/en";
+
+dayjs.extend(relativeTime);
 // import Sortable from "sortablejs"; // Removed for TableV2 compatibility
 import {
   Plus,
@@ -1042,6 +1047,19 @@ const DETAIL_FIELDS = [
 const route = useRoute();
 const router = useRouter();
 const { t, locale } = useI18n();
+
+watch(
+  locale,
+  (val) => {
+    if (val === "zh-CN") {
+      dayjs.locale("zh-cn");
+    } else {
+      dayjs.locale("en");
+    }
+  },
+  { immediate: true }
+);
+
 const filterStore = useFilterStore();
 const systemStatusStore = useSystemStatusStore();
 const {
@@ -1929,8 +1947,8 @@ const formatRatio = (ratio: number): string => {
 };
 
 const formatLastActivity = (timestamp?: number): string => {
-  if (!timestamp) return "—";
-  return dayjs(timestamp * 1000).format("YYYY-MM-DD HH:mm");
+  if (!timestamp || timestamp <= 0) return "—";
+  return dayjs(timestamp * 1000).fromNow();
 };
 
 const formatTorrentDate = (timestamp?: number): string => {
@@ -4332,7 +4350,7 @@ const tableV2Columns = computed<Column<Torrent>[]>(() => {
         h("span", formatTorrentDate(rowData.addedDate));
     } else if (col.key === "activityDate") {
       common.cellRenderer = ({ rowData }) =>
-        h("span", formatLastActivity(rowData.activityDate));
+        h("span", { title: formatTorrentDate(rowData.activityDate) }, formatLastActivity(rowData.activityDate));
     } else if (col.key === "labels") {
       common.cellRenderer = ({ rowData }) => {
         if (!rowData.labels?.length) return h("span", "—");
