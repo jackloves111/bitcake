@@ -1404,8 +1404,8 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.server'),
     prop: "defaultTracker",
     sortable: true,
-    minWidth: 160,
-    defaultWidth: 150,
+    minWidth: 80,
+    defaultWidth: 75,
     showInCompact: false,
   },
   {

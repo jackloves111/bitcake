@@ -333,7 +333,7 @@
                   <el-input-number
                     v-model="maxActiveDownloads"
                     :disabled="!queueingEnabled"
-                    :min="0"
+                    :min="-1"
                     class="full-width"
                   />
                 </el-form-item>
@@ -343,7 +343,7 @@
                   <el-input-number
                     v-model="maxActiveUploads"
                     :disabled="!queueingEnabled"
-                    :min="0"
+                    :min="-1"
                     class="full-width"
                   />
                 </el-form-item>
@@ -355,7 +355,7 @@
                   <el-input-number
                     v-model="maxActiveTorrents"
                     :disabled="!queueingEnabled"
-                    :min="0"
+                    :min="-1"
                     class="full-width"
                   />
                 </el-form-item>
