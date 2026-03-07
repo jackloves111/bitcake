@@ -8,11 +8,6 @@ on:
     tags:
       - 'v*'  # 只在推送 v 开头的 tag 时触发，如 v1.0.0
   workflow_dispatch:    # 保留手动触发
-    inputs:
-      environment:
-        description: '手动发布'
-        required: true
-        default: 'stage'
 
 jobs:
   build-and-release:
@@ -68,16 +63,18 @@ jobs:
           echo "TRANSMISSION_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-transmission.zip" >> $GITHUB_ENV
           echo "QBITTORRENT_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip" >> $GITHUB_ENV
 
-      - name: Extract version without v prefix
+      - name: Determine Release Version
         id: version-clean
         run: |
-          CLEAN_VERSION=${GITHUB_REF_NAME#v}
-          echo "clean_version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+          # 始终使用 package.json 中的版本号
+          VERSION=${{ steps.package-version.outputs.version }}
+          echo "clean_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create Snapshot Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version-clean.outputs.tag_name }}
           name: ${{ steps.version-clean.outputs.clean_version }}
           body: |
             Automated snapshot build from commit ${{ github.sha }}
