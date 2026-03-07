@@ -36,8 +36,8 @@
           <el-button @click="openReplaceTrackerDialog">
             {{ t('torrent.batchReplaceTracker') }}
           </el-button>
-          <el-button @click="resetColumnWidths" :title="t('torrent.resetColumnWidthTitle')">
-            {{ t('torrent.resetColumnWidth') }}
+          <el-button @click="showColumnDialog = true" :title="t('torrent.columnSettings')">
+            {{ t('torrent.columnSettings') }}
           </el-button>
           <el-button 
             v-if="notificationState.supported"
@@ -72,8 +72,8 @@
                 <el-dropdown-item command="replaceTracker">
                   {{ t('torrent.batchReplaceTracker') }}
                 </el-dropdown-item>
-                <el-dropdown-item command="resetWidth">
-                  {{ t('torrent.resetColumnWidth') }}
+                <el-dropdown-item command="columnVisibility">
+                  {{ t('torrent.columnSettings') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -257,6 +257,29 @@
         {{ t('torrent.deleteItem') }}{{ contextMenuTargets.length > 1 ? t('common.start') : '' }}
       </button>
     </div>
+
+    <!-- 列显示设置对话框 -->
+    <el-dialog
+      v-model="showColumnDialog"
+      :title="t('torrent.columnVisibility')"
+      :width="defaultDialogWidth"
+      destroy-on-close
+    >
+      <div class="column-toggle-list">
+        <p class="dialog-subtitle">{{ t('torrent.selectColumns') }}</p>
+        <el-checkbox-group v-model="visibleColumnKeys" @change="saveColumnVisibility">
+          <div v-for="col in tableColumns" :key="col.key" class="column-toggle-item">
+            <el-checkbox :label="col.key" :disabled="col.key === 'name'">
+              {{ col.label }}
+            </el-checkbox>
+          </div>
+        </el-checkbox-group>
+      </div>
+      <template #footer>
+        <el-button @click="resetColumnWidths">{{ t('torrent.resetColumnWidth') }}</el-button>
+        <el-button @click="showColumnDialog = false">{{ t('common.close') }}</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 添加种子对话框 -->
     <el-dialog
@@ -951,10 +974,44 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { buildTrackerErrorMappings } from "@/utils/errorMapping";
 import { useNotifications } from "@/composables/useNotifications";
+import { ElMessageBox } from "element-plus";
 
 const REFRESH_INTERVAL = 3000;
 const COLUMN_WIDTH_STORAGE_KEY = "tv_table_column_widths";
 const COLUMN_ORDER_STORAGE_KEY = "tv_table_column_order";
+const COLUMN_VISIBILITY_STORAGE_KEY = "tv_table_column_visibility";
+const showColumnDialog = ref(false);
+const visibleColumnKeys = ref<string[]>([]);
+
+const saveColumnVisibility = () => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      COLUMN_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(visibleColumnKeys.value)
+    );
+  } catch (error) {
+    console.warn("保存列显示状态失败", error);
+  }
+};
+
+const loadColumnVisibility = () => {
+  if (typeof window === "undefined") return;
+  try {
+    const stored = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      visibleColumnKeys.value = parsed.filter((key: string) =>
+        tableColumns.some((col) => col.key === key)
+      );
+    } else {
+      visibleColumnKeys.value = [...defaultColumnOrder];
+    }
+  } catch (error) {
+    console.warn("读取列显示状态失败", error);
+    visibleColumnKeys.value = [...defaultColumnOrder];
+  }
+};
 const DETAIL_FIELDS = [
   "id",
   "name",
@@ -1334,14 +1391,14 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.name'),
     prop: "name",
     sortable: true,
-    minWidth: 260,
+    minWidth: 130,
     defaultWidth: 320,
     showInCompact: true,
   },
   {
     key: "status",
     label: t('torrent.col.status'),
-    minWidth: 100,
+    minWidth: 50,
     defaultWidth: 120,
     showInCompact: true,
   },
@@ -1350,7 +1407,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.progress'),
     prop: "percentDone",
     sortable: true,
-    minWidth: 120,
+    minWidth: 60,
     defaultWidth: 140,
     showInCompact: true,
   },
@@ -1359,7 +1416,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.size'),
     prop: "totalSize",
     sortable: true,
-    minWidth: 120,
+    minWidth: 60,
     defaultWidth: 140,
     showInCompact: true,
   },
@@ -1368,7 +1425,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.ratio'),
     prop: "uploadRatio",
     sortable: true,
-    minWidth: 70,
+    minWidth: 35,
     defaultWidth: 70,
     showInCompact: false,
   },
@@ -1377,7 +1434,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.downloadSpeed'),
     prop: "rateDownload",
     sortable: true,
-    minWidth: 120,
+    minWidth: 60,
     defaultWidth: 140,
     showInCompact: true,
   },
@@ -1386,7 +1443,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.uploadSpeed'),
     prop: "rateUpload",
     sortable: true,
-    minWidth: 120,
+    minWidth: 60,
     defaultWidth: 140,
     showInCompact: true,
   },
@@ -1395,7 +1452,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.limit'),
     prop: "speedLimit",
     sortable: true,
-    minWidth: 110,
+    minWidth: 55,
     defaultWidth: 120,
     showInCompact: true,
   },
@@ -1404,8 +1461,8 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.server'),
     prop: "defaultTracker",
     sortable: true,
-    minWidth: 80,
-    defaultWidth: 75,
+    minWidth: 40,
+    defaultWidth: 80,
     showInCompact: false,
   },
   {
@@ -1413,7 +1470,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.seedsCol'),
     prop: "peersDownloading",
     sortable: true,
-    minWidth: 110,
+    minWidth: 55,
     defaultWidth: 130,
     showInCompact: false,
   },
@@ -1422,7 +1479,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.peersCol'),
     prop: "peersUploading",
     sortable: true,
-    minWidth: 110,
+    minWidth: 55,
     defaultWidth: 130,
     showInCompact: false,
   },
@@ -1431,7 +1488,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.uploaded'),
     prop: "uploadedEver",
     sortable: true,
-    minWidth: 130,
+    minWidth: 65,
     defaultWidth: 150,
     showInCompact: false,
   },
@@ -1440,7 +1497,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.downloadDir'),
     prop: "downloadDir",
     sortable: true,
-    minWidth: 160,
+    minWidth: 80,
     defaultWidth: 220,
     showInCompact: false,
   },
@@ -1449,7 +1506,7 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.addedOn'),
     prop: "addedDate",
     sortable: true,
-    minWidth: 150,
+    minWidth: 75,
     defaultWidth: 180,
     showInCompact: false,
   },
@@ -1458,20 +1515,25 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.lastActivityCol'),
     prop: "activityDate",
     sortable: true,
-    minWidth: 150,
+    minWidth: 75,
     defaultWidth: 180,
     showInCompact: false,
   },
   {
     key: "labels",
     label: t('torrent.col.labels'),
-    minWidth: 150,
+    minWidth: 75,
     defaultWidth: 200,
     showInCompact: false,
   },
 ];
 
 const defaultColumnOrder = tableColumns.map((col) => col.key);
+
+// Initialize visible columns if empty
+if (visibleColumnKeys.value.length === 0) {
+  visibleColumnKeys.value = [...defaultColumnOrder];
+}
 
 let refreshTimer: number | undefined;
 
@@ -1806,7 +1868,11 @@ const loadColumnOrder = () => {
 // 根据顺序获取有序的列配置
 const orderedColumns = computed(() => {
   return columnOrder.value
-    .filter((key) => key !== "speedLimit" || hasAnyPerTorrentLimit.value)
+    .filter((key) => {
+      if (key === "speedLimit" && !hasAnyPerTorrentLimit.value) return false;
+      // 过滤掉未勾选的列，但始终保留 'name' 列
+      return key === 'name' || visibleColumnKeys.value.includes(key);
+    })
     .map((key) => tableColumns.find((col) => col.key === key))
     .filter(Boolean) as ColumnConfig[];
 });
@@ -2590,23 +2656,35 @@ const handleColumnResize = (
 };
 
 const resetColumnWidths = () => {
-  columnWidths.value = { ...defaultColumnWidths };
-  columnOrder.value = [...defaultColumnOrder];
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.removeItem(COLUMN_WIDTH_STORAGE_KEY);
-      window.localStorage.removeItem(COLUMN_ORDER_STORAGE_KEY);
-    } catch (error) {
-      console.error(
-        "Failed to clear column settings from localStorage:",
-        error
-      );
+  ElMessageBox.confirm(
+    t('torrent.resetColumnWidth'),
+    {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning',
     }
-  }
-  nextTick(() => {
-    tableRef.value?.doLayout?.();
-  });
-  ElMessage.success(t('torrent.message.columnWidthReset'));
+  )
+    .then(() => {
+      columnWidths.value = { ...defaultColumnWidths };
+      window.localStorage.removeItem(COLUMN_WIDTH_STORAGE_KEY);
+      
+      // 重置列顺序
+      columnOrder.value = [...defaultColumnOrder];
+      window.localStorage.removeItem(COLUMN_ORDER_STORAGE_KEY);
+
+      // 重置列显示
+      visibleColumnKeys.value = [...defaultColumnOrder];
+      window.localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+      
+      ElMessage({
+        type: 'success',
+        message: t('common.success'),
+      });
+      nextTick(() => {
+        tableRef.value?.doLayout?.();
+      });
+    })
+    .catch(() => {});
 };
 
 // 加载种子列表
@@ -2872,6 +2950,7 @@ const handleActionCommand = (
     | "labels"
     | "replaceTracker"
     | "resetWidth"
+    | "columnVisibility"
 ) => {
   if (command === "start") {
     startSelected();
@@ -2899,6 +2978,10 @@ const handleActionCommand = (
   }
   if (command === "resetWidth") {
     resetColumnWidths();
+    return;
+  }
+  if (command === "columnVisibility") {
+    showColumnDialog.value = true;
   }
 };
 
@@ -4271,6 +4354,7 @@ onMounted(() => {
 
   loadColumnWidths();
   loadColumnOrder();
+  loadColumnVisibility();
   loadTorrents();
   startAutoRefresh();
   window.addEventListener("click", hideContextMenu);
@@ -4308,6 +4392,19 @@ onBeforeUnmount(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.column-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+}
+
+.column-toggle-item {
+  margin-bottom: 4px;
 }
 
 .toolbar {
