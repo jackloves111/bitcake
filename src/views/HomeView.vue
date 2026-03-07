@@ -4141,7 +4141,11 @@ const tableV2Columns = computed<Column<Torrent>[]>(() => {
           h('span', { style: { flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '4px' }, title: props.column.title }, props.column.title),
           
           props.column.sortable && h('span', { 
-            class: 'el-table-v2__sort-icon',
+            class: {
+              'el-table-v2__sort-icon': true,
+              'custom-sort-icon': true,
+              'is-sorted': props.sortBy?.key === props.column.key
+            },
             style: { 
               cursor: 'pointer', 
               flexShrink: 0,
@@ -4992,5 +4996,16 @@ onBeforeUnmount(() => {
 .table-scroll :deep(.el-table-v2__left) {
   border-right: 1px solid #ebeef5;
   box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+}
+
+/* Custom sort icon visibility control */
+.table-scroll :deep(.custom-sort-icon) {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.table-scroll :deep(.el-table-v2__header-cell:hover .custom-sort-icon),
+.table-scroll :deep(.custom-sort-icon.is-sorted) {
+  opacity: 1;
 }
 </style>
