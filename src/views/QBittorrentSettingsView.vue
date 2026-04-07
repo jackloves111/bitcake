@@ -58,6 +58,35 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">{{ t('settings.qbittorrent.externalProgram') }}</el-divider>
+            <el-row :gutter="16">
+              <el-col :xs="24">
+                <el-form-item :label="t('settings.qbittorrent.autorunEnabled')">
+                  <div class="inline-row">
+                    <el-switch v-model="autorunEnabled" />
+                    <el-input
+                      v-model="autorunProgram"
+                      :disabled="!autorunEnabled"
+                      :placeholder="t('settings.qbittorrent.autorunProgramPlaceholder')"
+                      class="inline-input"
+                    />
+                  </div>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24">
+                <el-form-item :label="t('settings.qbittorrent.autorunOnTorrentAddedEnabled')">
+                  <div class="inline-row">
+                    <el-switch v-model="autorunOnTorrentAddedEnabled" />
+                    <el-input
+                      v-model="autorunOnTorrentAddedProgram"
+                      :disabled="!autorunOnTorrentAddedEnabled"
+                      :placeholder="t('settings.qbittorrent.autorunProgramPlaceholder')"
+                      class="inline-input"
+                    />
+                  </div>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
         </el-tab-pane>
 
@@ -588,6 +617,12 @@ const webUiBanDuration = ref(3600)
 const alternativeWebuiEnabled = ref(false)
 const alternativeWebuiPath = ref('')
 
+// External Program settings
+const autorunEnabled = ref(false)
+const autorunProgram = ref('')
+const autorunOnTorrentAddedEnabled = ref(false)
+const autorunOnTorrentAddedProgram = ref('')
+
 const scheduleDayOptions = computed(() => [
   { label: t('settings.qbittorrent.everyday'), value: 0 },
   { label: t('settings.qbittorrent.weekdays'), value: 1 },
@@ -756,6 +791,11 @@ const loadSettings = async () => {
     alternativeWebuiEnabled.value = sessionData['alternative-webui-enabled'] || false
     alternativeWebuiPath.value = sessionData['alternative-webui-path'] || ''
 
+    autorunEnabled.value = (sessionData as any)['autorun_enabled'] || false
+    autorunProgram.value = (sessionData as any)['autorun_program'] || ''
+    autorunOnTorrentAddedEnabled.value = (sessionData as any)['autorun_on_torrent_added_enabled'] || false
+    autorunOnTorrentAddedProgram.value = (sessionData as any)['autorun_on_torrent_added_program'] || ''
+
     // Fallback enable logic for speed limits
     const s = settings.value
     s['speed-limit-up-enabled'] = (!!s['speed-limit-up-enabled']) || ((s['speed-limit-up'] || 0) > 0)
@@ -820,6 +860,11 @@ const saveSettings = async () => {
     updates['web-ui-ban-duration'] = webUiBanDuration.value
     updates['alternative-webui-enabled'] = alternativeWebuiEnabled.value
     updates['alternative-webui-path'] = alternativeWebuiPath.value
+
+    updates['autorun_enabled'] = autorunEnabled.value
+    updates['autorun_program'] = autorunProgram.value
+    updates['autorun_on_torrent_added_enabled'] = autorunOnTorrentAddedEnabled.value
+    updates['autorun_on_torrent_added_program'] = autorunOnTorrentAddedProgram.value
 
     await api.setSession(updates)
     ElMessage.success(t('settings.qbittorrent.saveSuccess'))

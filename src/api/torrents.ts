@@ -478,7 +478,7 @@ interface QBMainData {
   }
 }
 
-interface QBPreferences {
+export interface QBPreferences {
   save_path?: string
   temp_path?: string
   temp_path_enabled?: boolean
@@ -530,6 +530,10 @@ interface QBPreferences {
   web_ui_ban_duration?: number
   alternative_webui_enabled?: boolean
   alternative_webui_path?: string
+  autorun_enabled?: boolean
+  autorun_program?: string
+  autorun_on_torrent_added_enabled?: boolean
+  autorun_on_torrent_added_program?: string
 }
 
 const QB_KB = 1024
@@ -1166,6 +1170,10 @@ const qbittorrentService: TorrentService = {
     ;(config as any)['slow-torrent-dl-rate-threshold'] = preferences.slow_torrent_dl_rate_threshold || 0
     ;(config as any)['slow-torrent-ul-rate-threshold'] = preferences.slow_torrent_ul_rate_threshold || 0
     ;(config as any)['slow-torrent-inactive-timer'] = preferences.slow_torrent_inactive_timer || 0
+    ;(config as any)['autorun_enabled'] = !!(preferences as any).autorun_enabled
+    ;(config as any)['autorun_program'] = (preferences as any).autorun_program || ''
+    ;(config as any)['autorun_on_torrent_added_enabled'] = !!(preferences as any).autorun_on_torrent_added_enabled
+    ;(config as any)['autorun_on_torrent_added_program'] = (preferences as any).autorun_on_torrent_added_program || ''
     return config
   },
 
@@ -1277,6 +1285,12 @@ const qbittorrentService: TorrentService = {
     if ('alternative-webui-enabled' in params) qbParams.alternative_webui_enabled = params['alternative-webui-enabled']
     if ('alternative-webui-path' in params) qbParams.alternative_webui_path = params['alternative-webui-path']
 
+    // 外部程序设置
+    if ('autorun_enabled' in params) qbParams.autorun_enabled = params['autorun_enabled']
+    if ('autorun_program' in params) qbParams.autorun_program = params['autorun_program']
+    if ('autorun_on_torrent_added_enabled' in params) qbParams.autorun_on_torrent_added_enabled = params['autorun_on_torrent_added_enabled']
+    if ('autorun_on_torrent_added_program' in params) qbParams.autorun_on_torrent_added_program = params['autorun_on_torrent_added_program']
+
     // 加密设置
     if ('encryption' in params) {
       const encMap: Record<string, number> = {
@@ -1332,6 +1346,11 @@ const qbittorrentService: TorrentService = {
     const categories = await qbittorrentClient.get<Record<string, any>>('/torrents/categories')
     return Object.keys(categories || {})
   },
+}
+
+export const getPreferences = async () => {
+  await qbEnsureAuth()
+  return qbittorrentClient.get<QBPreferences>('/app/preferences')
 }
 
 const activeService: TorrentService = isTransmission ? transmissionService : qbittorrentService
