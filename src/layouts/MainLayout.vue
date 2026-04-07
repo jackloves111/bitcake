@@ -178,6 +178,7 @@ import { formatBytes } from "@/utils/format";
 import SidebarStatus from "./components/SidebarStatus.vue";
 import { torrentBackendName, isTransmission } from "@/config/torrentClient";
 import { TorrentStatusEnum } from "@/types/transmission";
+import { logout as apiLogout } from "@/api/torrents";
 
 const { t } = useI18n();
 const localeStore = useLocaleStore();
@@ -392,6 +393,9 @@ const handleLogout = async () => {
 
     // 停止定时刷新
     systemStatusStore.stop();
+
+    // 真正调用后端登出接口以清除 Session
+    await apiLogout();
 
     // 清除连接状态
     connectionStore.setConnected(false);

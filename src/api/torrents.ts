@@ -1324,8 +1324,25 @@ const qbittorrentService: TorrentService = {
   },
 
   async testConnection() {
-    await qbEnsureAuth()
-    await qbittorrentClient.get('/transfer/info')
+    // 强制使用提供的凭据进行登录认证，而不是依赖现有的 Cookie
+    if (!currentConnection.username || !currentConnection.password) {
+      throw new Error('qBittorrent 需要提供用户名和密码')
+    }
+
+    const body = qbittorrentClient.buildFormData({
+      username: currentConnection.username,
+      password: currentConnection.password,
+    })
+    const result = await qbittorrentClient.post<string>('/auth/login', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
+
+    if (typeof result === 'string' && result.toLowerCase().startsWith('ok')) {
+      qbAuthenticated = true
+      return
+    }
+
+    throw new Error('qBittorrent 认证失败：用户名或密码错误')
   },
 
   async setTorrentCategory(ids, category) {
@@ -1381,6 +1398,21 @@ export const testConnection = async (config?: Partial<ServerConfig>) => {
     configureConnectionInternal(config)
   }
   await activeService.testConnection()
+}
+
+export const logout = async () => {
+  if (isTransmission) {
+    transmissionClient.clearAuth()
+  } else {
+    try {
+      await qbittorrentClient.post('/auth/logout')
+    } catch (e) {
+      console.warn('qBittorrent logout failed', e)
+    }
+    qbAuthenticated = false
+    currentConnection.username = ''
+    currentConnection.password = ''
+  }
 }
 
 export const setTorrentCategory = (ids: number[], category: string) =>
