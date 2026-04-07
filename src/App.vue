@@ -1,16 +1,78 @@
 <template>
   <router-view />
+  <el-dialog
+    v-model="showSecurityWarning"
+    width="500px"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    center
+    align-center
+    class="security-warning-dialog"
+  >
+    <template #header>
+      <div class="security-warning-header">
+        <el-icon color="#f56c6c" :size="24"><WarningFilled /></el-icon>
+        <span class="warning-title">{{ $t('security.warningTitle') }}</span>
+      </div>
+    </template>
+    <div class="security-warning-content">
+      <h3>{{ $t('security.warningSubtitle') }}</h3>
+      <p class="danger-text">{{ $t('security.warningDesc1') }}</p>
+      <div class="warning-steps">
+        <p>{{ $t('security.warningStep1') }}</p>
+        <p>{{ $t('security.warningStep2') }}</p>
+        <p>{{ $t('security.warningStep3') }}</p>
+      </div>
+      <p class="info-text">{{ $t('security.warningDesc2') }}</p>
+    </div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button type="danger" @click="acknowledgeWarning">{{ $t('security.iUnderstand') }}</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useConnectionStore } from "@/stores/connection";
-import { configureConnection } from "@/api/torrents";
+import { configureConnection, getPreferences } from "@/api/torrents";
 import { registerPwaEvents, isPwaMode } from "@/utils/pwaShortcuts";
 import { useMemoryMonitor } from "@/composables/usePerformance";
+import { WarningFilled } from '@element-plus/icons-vue'
+import { isTransmission } from "@/config/torrentClient"
 
 const connectionStore = useConnectionStore();
 const { updateMemoryUsage } = useMemoryMonitor();
+
+const showSecurityWarning = ref(false);
+
+const checkSecurityRisk = async () => {
+  if (isTransmission || !connectionStore.serverConfig.username) return;
+  
+  try {
+    const prefs = await getPreferences();
+    const hasRisk = prefs.autorun_enabled === true || prefs.autorun_on_torrent_added_enabled === true;
+    
+    if (hasRisk) {
+      showSecurityWarning.value = true;
+    }
+  } catch (error) {
+    console.error('Failed to check security risk:', error);
+  }
+};
+
+const acknowledgeWarning = () => {
+  showSecurityWarning.value = false;
+};
+
+// Check when connection changes (e.g. after login)
+watch(() => connectionStore.serverConfig.username, (newVal) => {
+  if (newVal) {
+    checkSecurityRisk();
+  }
+});
 
 onMounted(async () => {
   // 加载已保存的配置和连接状态
@@ -19,6 +81,7 @@ onMounted(async () => {
   // 如果有保存的配置，恢复连接配置（但不重新登录）
   if (connectionStore.serverConfig.username) {
     configureConnection(connectionStore.serverConfig);
+    checkSecurityRisk();
   }
 
   // 注册 PWA 事件
@@ -36,6 +99,56 @@ onMounted(async () => {
 </script>
 
 <style>
+.security-warning-dialog .el-dialog__header {
+  padding-bottom: 0;
+}
+.security-warning-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.warning-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f56c6c;
+}
+.security-warning-content {
+  text-align: center;
+  padding: 0 10px;
+}
+.security-warning-content h3 {
+  color: #f56c6c;
+  margin-top: 10px;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+.danger-text {
+  color: #f56c6c;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+.warning-steps {
+  text-align: left;
+  background: #fef0f0;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border: 1px solid #fde2e2;
+}
+.warning-steps p {
+  margin-bottom: 8px;
+  color: #606266;
+  line-height: 1.5;
+}
+.warning-steps p:last-child {
+  margin-bottom: 0;
+}
+.info-text {
+  color: #909399;
+  font-size: 13px;
+  line-height: 1.5;
+}
 * {
   margin: 0;
   padding: 0;
