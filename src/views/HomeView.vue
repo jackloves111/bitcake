@@ -1791,6 +1791,8 @@ const contextMenu = ref<{
 });
 const contextMenuRef = ref<HTMLElement | null>(null);
 const contextMenuTargets = ref<Torrent[]>([]);
+// 缓存右键打开菜单时的选中文本（点击菜单项可能导致 selection 被清空）
+const contextMenuSelectedText = ref<string>("");
 
 // 计算右键菜单目标中是否有已停止的种子
 const contextMenuHasStoppedTorrent = computed(() =>
@@ -2576,6 +2578,9 @@ const handleRowContextMenu = (
 ) => {
   event.preventDefault();
 
+  // 先缓存当前选中的文本（点击自定义右键菜单时常会丢失 selection）
+  contextMenuSelectedText.value = window.getSelection()?.toString() || "";
+
   // 判断右键的种子是否在已选择列表中
   const isRowSelected = selectedTorrents.value.some((t) => t.id === row.id);
 
@@ -2634,6 +2639,25 @@ const hideContextMenu = () => {
   contextMenu.value.visible = false;
   contextMenu.value.torrent = null;
   contextMenuTargets.value = [];
+  contextMenuSelectedText.value = "";
+};
+
+const copyTextToClipboard = async (text: string) => {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-1000px";
+  textarea.style.left = "-1000px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const ok = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!ok) throw new Error("copy failed");
 };
 
 const adjustContextMenuPosition = () => {
@@ -3080,14 +3104,24 @@ const handleContextAction = (
     return;
   }
   if (action === "copy") {
-    const selectedText = window.getSelection()?.toString() || "";
-    if (selectedText) {
-      navigator.clipboard.writeText(selectedText).then(() => {
-        ElMessage.success(t('torrent.message.copiedToClipboard'));
-      }).catch(() => {
-        ElMessage.error(t('torrent.message.copyFailed'));
-      });
+    let selectedText =
+      (window.getSelection()?.toString() || "").trim() ||
+      (contextMenuSelectedText.value || "").trim();
+      
+    // 如果没有选中文本，则默认复制选中的种子名称
+    if (!selectedText && targets.length > 0) {
+      selectedText = targets.map((t) => t.name).join('\n');
     }
+
+    if (!selectedText) {
+      ElMessage.warning(t('torrent.message.noTextSelected'));
+      return;
+    }
+    copyTextToClipboard(selectedText).then(() => {
+      ElMessage.success(t('torrent.message.copiedToClipboard'));
+    }).catch(() => {
+      ElMessage.error(t('torrent.message.copyFailed'));
+    });
   }
 };
 

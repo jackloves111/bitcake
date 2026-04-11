@@ -309,6 +309,7 @@ export default {
       operationFailed: '操作失败',
       copiedToClipboard: '已复制到剪贴板',
       copyFailed: '复制失败',
+      noTextSelected: '未检测到可复制的选中文本',
       started: '已开始',
       startedMultiple: '已开始 {count} 个种子',
       stopped: '已暂停',
