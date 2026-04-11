@@ -309,6 +309,7 @@ export default {
       operationFailed: 'Operation failed',
       copiedToClipboard: 'Copied to clipboard',
       copyFailed: 'Copy failed',
+      noTextSelected: 'No selected text to copy',
       started: 'Started',
       startedMultiple: 'Started {count} torrents',
       stopped: 'Stopped',
