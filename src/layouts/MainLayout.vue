@@ -545,7 +545,7 @@ const handleLogout = async () => {
   display: flex;
   flex-direction: column;
   height: calc(100% - 72px);
-  padding-bottom: 20px;
+  padding-bottom: 0;
   min-height: 0;
 }
 
@@ -602,4 +602,11 @@ const handleLogout = async () => {
     padding: 16px 12px 32px;
   }
 }
+</style>
+<style>
+  @media (max-width: 768px){
+    .el-drawer__body {
+      padding-bottom: 0;
+    }
+  }
 </style>

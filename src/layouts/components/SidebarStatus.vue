@@ -64,7 +64,7 @@ defineProps<{
 
 @media (max-width: 768px) {
   .sidebar-status {
-    padding: 12px 16px;
+    padding: 12px 16px 0px;
   }
 }
 </style>
