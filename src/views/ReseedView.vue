@@ -1,6 +1,6 @@
 <template>
-  <div class="reseed-view">
-    <div class="toolbar">
+  <div class="reseed-view" ref="reseedViewRef">
+    <div class="toolbar" ref="toolbarRef">
       <div class="actions-group">
         <el-button :icon="Refresh" @click="loadReseedData()">{{ t('common.refresh') }}</el-button>
         <el-radio-group v-model="filterMode" size="default">
@@ -156,11 +156,12 @@
       </el-table-column>
     </el-table>
 
-    <div class="pagination-container">
+    <div class="pagination-container" ref="paginationRef">
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
+        :pager-count="5"
         :total="filteredReseedData.length"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
@@ -350,7 +351,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -519,6 +520,9 @@ const sortProp = ref('trackerCount')
 const sortOrder = ref<'ascending' | 'descending'>('descending')
 const currentPage = ref(1)
 const pageSize = ref(50) // 增加默认每页大小，减少页面切换
+const reseedViewRef = ref<HTMLElement | null>(null)
+const toolbarRef = ref<HTMLElement | null>(null)
+const paginationRef = ref<HTMLElement | null>(null)
 
 // 缓存上次的种子数据指纹，用于判断是否需要重新计算
 const lastTorrentsFingerprint = ref('')
@@ -537,9 +541,16 @@ const getTorrentsFingerprint = (torrents: Torrent[]): string => {
   return `${count}-${first3}-${last3}`
 }
 
-const tableHeight = computed(() => {
-  return window.innerHeight - 260
-})
+const tableHeight = ref(420)
+
+const updateTableHeight = () => {
+  const containerHeight = reseedViewRef.value?.clientHeight ?? 0
+  const toolbarHeight = toolbarRef.value?.offsetHeight ?? 0
+  const paginationHeight = paginationRef.value?.offsetHeight ?? 0
+  const verticalGap = 16
+  const nextHeight = containerHeight - toolbarHeight - paginationHeight - verticalGap
+  tableHeight.value = Math.max(260, nextHeight)
+}
 
 // 加载辅种数据
 const loadReseedData = () => {
@@ -797,6 +808,11 @@ watch(searchKeyword, (newValue) => {
   debouncedSearch(newValue)
 })
 
+watch(locale, async () => {
+  await nextTick()
+  updateTableHeight()
+})
+
 // 定时刷新
 let refreshTimer: number | null = null
 
@@ -812,6 +828,9 @@ onMounted(async () => {
   }
 
   loadReseedData()
+  await nextTick()
+  updateTableHeight()
+  window.addEventListener('resize', updateTableHeight)
   // 每 10 秒刷新一次（配合缓存机制，数据未变化时不会重新计算）
   refreshTimer = window.setInterval(() => {
     loadReseedData()
@@ -822,6 +841,7 @@ onUnmounted(() => {
   if (refreshTimer) {
     clearInterval(refreshTimer)
   }
+  window.removeEventListener('resize', updateTableHeight)
 })
 </script>
 
@@ -830,7 +850,6 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 20px;
 }
 
 .toolbar {
@@ -851,8 +870,64 @@ onUnmounted(() => {
 .pagination-container {
   display: flex;
   justify-content: center;
-  padding: 16px 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 16px 0 0 0;
   margin-top: auto;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.pagination-container :deep(.el-pagination) {
+  width: 100%;
+  max-width: 100%;
+  justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.pagination-container :deep(.el-pagination__sizes) {
+  margin-right: 8px;
+}
+
+.pagination-container :deep(.el-pagination__sizes .el-select) {
+  width: 110px;
+}
+
+.pagination-container :deep(.el-pagination__sizes .el-input__wrapper) {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+@media (max-width: 768px) {
+  .pagination-container {
+    justify-content: flex-end;
+  }
+
+  .pagination-container :deep(.el-pagination) {
+    justify-content: flex-end;
+    column-gap: 4px;
+  }
+
+  .pagination-container :deep(.el-pagination__sizes .el-select) {
+    width: 110px;
+  }
+
+  .pagination-container :deep(.el-pagination__sizes .el-input__wrapper) {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .pagination-container :deep(.btn-prev),
+  .pagination-container :deep(.btn-next),
+  .pagination-container :deep(.el-pager li) {
+    min-width: 24px;
+  }
+
+  .pagination-container :deep(.el-pagination__total),
+  .pagination-container :deep(.el-pagination__jump) {
+    display: none;
+  }
 }
 
 .file-name-cell {
