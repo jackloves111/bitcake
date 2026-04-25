@@ -205,6 +205,7 @@
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
+          :pager-count="5"
           layout="total, sizes, prev, pager, next"
           :total="displayedTorrents.length"
           background
@@ -4670,6 +4671,31 @@ onBeforeUnmount(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.pagination :deep(.el-pagination) {
+  width: 100%;
+  max-width: 100%;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.pagination :deep(.el-pagination__sizes) {
+  margin-right: 8px;
+}
+
+.pagination :deep(.el-pagination__sizes .el-select) {
+  width: 110px;
+}
+
+.pagination :deep(.el-pagination__sizes .el-input__wrapper) {
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .detail-dialog :deep(.el-dialog__body) {
@@ -4927,6 +4953,29 @@ onBeforeUnmount(() => {
 
   .table-container {
     margin-top: 12px;
+  }
+
+  .pagination :deep(.el-pagination) {
+    column-gap: 4px;
+  }
+
+  .pagination :deep(.el-pagination__sizes .el-select) {
+    width: 110px;
+  }
+
+  .pagination :deep(.el-pagination__sizes .el-input__wrapper) {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .pagination :deep(.btn-prev),
+  .pagination :deep(.btn-next),
+  .pagination :deep(.el-pager li) {
+    min-width: 24px;
+  }
+
+  .pagination :deep(.el-pagination__total) {
+    display: none;
   }
 
   .detail-grid {

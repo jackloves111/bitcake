@@ -597,10 +597,6 @@ const handleLogout = async () => {
     min-height: calc(100vh - 60px);
     flex-direction: column;
   }
-
-  .main {
-    padding: 16px 12px 32px;
-  }
 }
 </style>
 <style>
