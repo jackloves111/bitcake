@@ -309,7 +309,7 @@ npm run build:transmission
 npm run build:qbittorrent
 
 # 构建生产版本（通用）
-npm run build
+npm run build:both
 ```
 
 ## 🎨 预览
