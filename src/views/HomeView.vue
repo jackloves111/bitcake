@@ -4847,6 +4847,9 @@ onBeforeUnmount(() => {
 .files-tree :deep(.el-tree-node__content) {
   height: 32px;
 }
+.files-tree :deep(.el-tree-node__children) {
+  overflow: visible;
+}
 .file-node {
   display: flex;
   align-items: center;
