@@ -116,7 +116,7 @@
             />
           </el-select>
           <el-select
-            v-if="categoryOptions.length > 0"
+            v-if="!isTransmission && categoryOptions.length > 0"
             v-model="categoryFilter"
             :placeholder="t('torrent.selectCategory')"
             clearable
@@ -161,6 +161,28 @@
             <el-option :label="t('torrent.allErrors')" value="" />
             <el-option
               v-for="option in errorTypeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <el-select
+            v-if="labelOptions.length > 0"
+            v-model="labelFilter"
+            :placeholder="t('torrent.selectLabel')"
+            clearable
+            filterable
+            class="filter-select"
+            @clear="labelFilter = ''"
+          >
+            <el-option :label="t('torrent.allLabels')" value="" />
+            <el-option
+              v-if="hasNoLabelTorrent"
+              :label="t('torrent.noLabel')"
+              value="__no_label__"
+            />
+            <el-option
+              v-for="option in labelOptions"
               :key="option.value"
               :label="option.label"
               :value="option.value"
@@ -269,10 +291,16 @@
       <div class="column-toggle-list">
         <p class="dialog-subtitle">{{ t('torrent.selectColumns') }}</p>
         <el-checkbox-group v-model="visibleColumnKeys" @change="saveColumnVisibility">
-          <div v-for="col in tableColumns" :key="col.key" class="column-toggle-item">
-            <el-checkbox :label="col.key" :disabled="col.key === 'name'">
-              {{ col.label }}
-            </el-checkbox>
+          <div
+            v-for="col in tableColumns"
+            :key="col.key"
+            class="column-toggle-item"
+          >
+            <template v-if="col.key !== 'category' || !isTransmission">
+              <el-checkbox :label="col.key" :disabled="col.key === 'name'">
+                {{ col.label }}
+              </el-checkbox>
+            </template>
           </div>
         </el-checkbox-group>
       </div>
@@ -1069,6 +1097,7 @@ const {
   categoryFilter,
   downloadDirFilter,
   errorTypeFilter,
+  labelFilter,
 } = storeToRefs(filterStore);
 const { sessionConfig } = storeToRefs(systemStatusStore);
 
@@ -1391,6 +1420,7 @@ const defaultColumnWidths: Record<string, number> = {
   addedDate: 150,
   activityDate: 150,
   labels: 100,
+  category: 100,
 };
 
 // 定义表格列配置
@@ -1543,6 +1573,15 @@ const tableColumns: ColumnConfig[] = [
     label: t('torrent.col.labels'),
     minWidth: 75,
     defaultWidth: 200,
+    showInCompact: false,
+  },
+  {
+    key: "category",
+    label: t('torrent.col.category'),
+    prop: "category",
+    sortable: true,
+    minWidth: 60,
+    defaultWidth: 120,
     showInCompact: false,
   },
 ];
@@ -1741,8 +1780,8 @@ const availableLabelsOptions = computed(() => {
   torrents.value.forEach((torrent) => {
     if (torrent.labels && torrent.labels.length > 0) {
       torrent.labels.forEach((label) => {
-        // 排除特殊标签：分类和限速标签
-        if (!label.startsWith("category:") && !label.startsWith("limit:")) {
+        // 排除分类标签
+        if (!label.startsWith("category:")) {
           labelsSet.add(label);
         }
       });
@@ -1753,13 +1792,36 @@ const availableLabelsOptions = computed(() => {
     .map((label) => ({ label, value: label }));
 });
 
+// 标签筛选选项：包含所有标签（category: 前缀剥离显示，按原始值去重）
+const labelOptions = computed(() => {
+  const seen = new Set<string>();
+  const result: { label: string; value: string }[] = [];
+  torrents.value.forEach((torrent) => {
+    (torrent.labels ?? []).forEach((raw) => {
+      if (seen.has(raw)) return;
+      seen.add(raw);
+      const display = raw.startsWith("category:") ? raw.slice("category:".length) : raw;
+      result.push({ label: display, value: raw });
+    });
+  });
+  result.sort((a, b) => a.label.localeCompare(b.label));
+  return result;
+});
+
+// 是否存在无普通标签的种子（仅有 category: 前缀标签也算无标签）
+const hasNoLabelTorrent = computed(() =>
+  torrents.value.some(
+    (t) => !(t.labels ?? []).some((l) => !l.startsWith("category:"))
+  )
+);
+
 const currentLabelsPreview = computed(() => {
   const labelsSet = new Set<string>();
   labelsDialogTargetTorrents.value.forEach((torrent) => {
     if (torrent.labels && torrent.labels.length > 0) {
       torrent.labels.forEach((label) => {
-        // 排除特殊标签
-        if (!label.startsWith("category:") && !label.startsWith("limit:")) {
+        // 排除分类标签
+        if (!label.startsWith("category:")) {
           labelsSet.add(label);
         }
       });
@@ -1891,6 +1953,7 @@ const orderedColumns = computed(() => {
   return columnOrder.value
     .filter((key) => {
       if (key === "speedLimit" && !hasAnyPerTorrentLimit.value) return false;
+      if (key === "category" && isTransmission) return false;
       // 过滤掉未勾选的列，但始终保留 'name' 列
       return key === 'name' || visibleColumnKeys.value.includes(key);
     })
@@ -2079,13 +2142,23 @@ const filteredTorrents = computed(() => {
       !errorTypeFilter.value ||
       (isTorrentError(torrent) &&
         getErrorType(torrent.errorString) === errorTypeFilter.value);
+    const matchesLabel =
+      !labelFilter.value ||
+      (labelFilter.value === "__no_label__"
+        ? !(torrent.labels ?? []).some(
+            (l) => !l.startsWith("category:")
+          )
+        : (torrent.labels ?? []).some(
+            (l) => l === labelFilter.value
+          ));
     return (
       matchesKeyword &&
       matchesStatus &&
       matchesTracker &&
       matchesCategory &&
       matchesDownloadDir &&
-      matchesErrorType
+      matchesErrorType &&
+      matchesLabel
     );
   });
 });
@@ -2407,7 +2480,7 @@ watch(detailTorrent, () => {
   detailTreeInitialized.value = false;
 });
 
-watch([searchKeyword, statusFilter, trackerFilter], () => {
+watch([searchKeyword, statusFilter, trackerFilter, labelFilter], () => {
   currentPage.value = 1;
 });
 
@@ -3352,18 +3425,15 @@ const submitLabelsChange = async () => {
       if (!torrent) continue;
       const currentLabels = torrent.labels || [];
 
-      // 提取特殊标签（分类和限速）
+      // 提取分类标签（保留不动）
       const categoryLabel = currentLabels.find((l) =>
         l.startsWith("category:")
       );
-      const limitLabel = currentLabels.find((l) => l.startsWith("limit:"));
-      const specialLabels = [categoryLabel, limitLabel].filter(
-        Boolean
-      ) as string[];
+      const specialLabels = categoryLabel ? [categoryLabel] : [];
 
-      // 提取普通标签（排除特殊标签）
+      // 提取普通标签（排除分类标签）
       const normalLabels = currentLabels.filter(
-        (l) => !l.startsWith("category:") && !l.startsWith("limit:")
+        (l) => !l.startsWith("category:")
       );
 
       let newNormalLabels: string[];
@@ -4392,11 +4462,17 @@ const tableV2Columns = computed<Column<Torrent>[]>(() => {
         return h(
           "div",
           { style: { display: "flex", flexWrap: "wrap", gap: "4px" } },
-          rowData.labels.map((label: string) =>
-            h(ElTag, { size: "small", class: "label-tag" }, () => label)
-          )
+          rowData.labels.map((label: string) => {
+            const display = label.startsWith("category:")
+              ? label.slice("category:".length)
+              : label;
+            return h(ElTag, { size: "small", class: "label-tag" }, () => display);
+          })
         );
       };
+    } else if (col.key === "category") {
+      common.cellRenderer = ({ rowData }) =>
+        h("span", rowData.category || "—");
     }
 
     return common;
