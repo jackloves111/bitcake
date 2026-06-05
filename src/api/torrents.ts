@@ -653,7 +653,6 @@ const mapQBTorrent = (item: QBTorrentInfo, properties?: QBTorrentProperties): To
   const id = registerQbHash(item.hash)
   const status = resolveQbStatus(item.state)
   const labels: string[] = []
-  if (item.category) labels.push(item.category)
   if (item.tags) {
     labels.push(...item.tags.split(',').map((tag) => tag.trim()).filter(Boolean))
   }
