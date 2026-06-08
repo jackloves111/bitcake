@@ -2716,6 +2716,19 @@ const hideContextMenu = () => {
   contextMenuSelectedText.value = "";
 };
 
+const clearTorrentSelection = () => {
+  selectedIdsState.value = [];
+  selectedTorrents.value = [];
+  lastClickedIndex.value = -1;
+  tableRef.value?.clearSelection?.();
+  hideContextMenu();
+};
+
+const reloadTorrentsAfterMutation = async () => {
+  clearTorrentSelection();
+  await loadTorrents();
+};
+
 const copyTextToClipboard = async (text: string) => {
   if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(text);
@@ -2962,13 +2975,7 @@ const confirmRemoveDialog = async () => {
     ElMessage.success(t('torrent.message.deleted'));
     removeDialog.value.visible = false;
     removeDialog.value.ids = [];
-    selectedIdsState.value = selectedIdsState.value.filter(
-      (id) => !ids.includes(id)
-    );
-    selectedTorrents.value = selectedTorrents.value.filter(
-      (torrent) => !ids.includes(torrent.id)
-    );
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.deleteFailed')}: ${error.message}`);
   }
@@ -3008,13 +3015,15 @@ const stopAutoRefresh = () => {
 };
 
 const startSelected = async () => {
-  if (!selectedIds.value.length) return;
-  await startTorrents(selectedIds.value);
+  const ids = [...selectedIds.value];
+  if (!ids.length) return;
+  await startTorrents(ids);
 };
 
 const stopSelected = async () => {
-  if (!selectedIds.value.length) return;
-  await stopTorrents(selectedIds.value);
+  const ids = [...selectedIds.value];
+  if (!ids.length) return;
+  await stopTorrents(ids);
 };
 
 // 开始指定 ID 的种子
@@ -3027,7 +3036,7 @@ const startTorrents = async (ids: number[]) => {
         ? t('torrent.message.startedMultiple', { count: ids.length })
         : t('torrent.message.started')
     );
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.operationFailed')}: ${error.message}`);
   }
@@ -3043,7 +3052,7 @@ const stopTorrents = async (ids: number[]) => {
         ? t('torrent.message.stoppedMultiple', { count: ids.length })
         : t('torrent.message.stopped')
     );
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.operationFailed')}: ${error.message}`);
   }
@@ -3206,7 +3215,7 @@ const startTorrentsById = async (ids: number[]) => {
     ElMessage.success(
       ids.length > 1 ? t('torrent.message.startedMultiple', { count: ids.length }) : t('torrent.message.started')
     );
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.operationFailed')}: ${error.message}`);
   }
@@ -3219,7 +3228,7 @@ const stopTorrentsById = async (ids: number[]) => {
     ElMessage.success(
       ids.length > 1 ? t('torrent.message.stoppedMultiple', { count: ids.length }) : t('torrent.message.stopped')
     );
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.operationFailed')}: ${error.message}`);
   }
@@ -3232,6 +3241,7 @@ const verifyTorrentsById = async (ids: number[]) => {
     ElMessage.success(
       ids.length > 1 ? t('torrent.message.verifyStartedMultiple', { count: ids.length }) : t('torrent.message.verifyStarted')
     );
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.verifyFailed')}: ${error.message}`);
   }
@@ -3281,7 +3291,7 @@ const submitLocationChange = async () => {
         : t('torrent.message.locationUpdated')
     );
     showLocationDialog.value = false;
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.locationChangeFailed')}: ${error.message}`);
   }
@@ -3317,7 +3327,7 @@ const submitCategoryChange = async () => {
           : t('torrent.message.categoryUpdated')
       );
       showCategoryDialog.value = false;
-      loadTorrents();
+      await reloadTorrentsAfterMutation();
     } else {
       ElMessage.warning(t('torrent.message.categoryNotSupported'));
     }
@@ -3476,7 +3486,7 @@ const submitLabelsChange = async () => {
 
     ElMessage.success(t('torrent.message.labelsUpdated', { count: targetTorrents.length }));
     showLabelsDialog.value = false;
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.modifyLabelsFailed')}: ${error.message}`);
   } finally {
@@ -3730,7 +3740,7 @@ const submitLimitSettings = async () => {
         : t('torrent.message.limitApplied')
     );
     limitDialogVisible.value = false;
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.saveFailed')}: ${error.message}`);
   } finally {
@@ -3773,7 +3783,7 @@ const submitReplaceTracker = async () => {
     ElMessage.success(t('torrent.message.trackerReplaced', { count: allIds.length }));
     replaceTrackerDialogVisible.value = false;
     // 刷新种子列表
-    await loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     ElMessage.error(`${t('torrent.message.replaceFailed')}: ${error.message || error}`);
   } finally {
@@ -3938,7 +3948,7 @@ const handleAddTorrent = async () => {
     uploadRef.value?.clearFiles();
 
     // 刷新列表
-    loadTorrents();
+    await reloadTorrentsAfterMutation();
   } catch (error: any) {
     // 确保关闭遮罩
     if (loadingInstance) {
