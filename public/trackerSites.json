@@ -323,5 +323,23 @@
 	}, {
 		"name": "雨",
 		"trackers": ["raingfh"]
+	}, {
+		"name": "自然",
+		"trackers": ["zrpt.cc"]
+	}, {
+		"name": "星陨阁",
+		"trackers": ["tracker.xingyungept.org"]
+	}, {
+		"name": "拾刻",
+		"trackers": ["tracker.ptskit.org"]
+	}, {
+		"name": "龟站",
+		"trackers": ["kamept.com", "tracker.kame.gay"]
+	}, {
+		"name": "RailgunPT",
+		"trackers": ["bilibili.download"]
+	}, {
+		"name": "莫妮卡",
+		"trackers": ["anime-no-index.com"]
 	}]
 }
