@@ -624,19 +624,19 @@
                     ></span>
                   </el-descriptions-item>
                   <el-descriptions-item
-                    v-if="detailTorrent.errorString"
+                    v-if="getTorrentErrorMessage(detailTorrent)"
                     :label="t('torrent.errorInfo')"
                     :span="2"
                   >
                     <div>
                       <el-text type="danger" style="font-weight: 600">{{
-                        getFriendlyErrorMessage(detailTorrent.errorString)
+                        getFriendlyErrorMessage(getTorrentErrorMessage(detailTorrent))
                       }}</el-text>
                       <div
-                        style="margin-top: 8px; opacity: 0.7; font-size: 12px"
+                        style="margin-top: 8px; font-size: 12px; color: var(--bc-text-subtle);"
                       >
                         <el-text type="info"
-                          >{{ t('torrent.originalError') }}: {{ detailTorrent.errorString }}</el-text
+                          >{{ t('torrent.originalError') }}: {{ getTorrentErrorMessage(detailTorrent) }}</el-text
                         >
                       </div>
                     </div>
@@ -1115,9 +1115,10 @@ import {
   type TorrentColumnConfig,
 } from "@/composables/useTorrentTable";
 import { useTorrentFacets } from "@/composables/useTorrentFacets";
+import { usePreferencesStore } from "@/stores/preferences";
 import { ElMessageBox } from "element-plus";
 
-const REFRESH_INTERVAL = 3000;
+const preferencesStore = usePreferencesStore();
 const COLUMN_WIDTH_STORAGE_KEY = "tv_table_column_widths";
 const COLUMN_VISIBILITY_STORAGE_KEY = "tv_table_column_visibility";
 const showColumnDialog = ref(false);
@@ -1247,6 +1248,7 @@ interface TorrentStatusSnapshot {
   percentDone: number;
   recheckProgress?: number;
   error?: number;
+  hasError?: boolean;
   generation: number;
 }
 
@@ -2547,11 +2549,23 @@ const handleManualRefresh = async () => {
 const torrentPoller = new AdaptivePoller(
   () => loadTorrents({ silent: true }),
   {
-    intervalMs: REFRESH_INTERVAL,
+    intervalMs: () => preferencesStore.refreshInterval,
     maxIntervalMs: 30_000,
     shouldRun: () =>
+      preferencesStore.refreshInterval > 0 &&
       !isScrolling.value &&
       (typeof document === "undefined" || document.visibilityState !== "hidden"),
+  }
+);
+
+watch(
+  () => preferencesStore.refreshInterval,
+  (newInterval) => {
+    if (newInterval > 0) {
+      torrentPoller.restart(false);
+    } else {
+      torrentPoller.stop();
+    }
   }
 );
 
@@ -2579,8 +2593,11 @@ const checkTorrentStatusChanges = () => {
         notifyTorrentCompleted(torrent.name);
       }
       
+      const wasError = prev.hasError ?? Boolean(prev.error && prev.error !== 0);
+      const hasError = isTorrentError(torrent);
+
       // 检查是否出错（tracker 的正常响应如 `ook` 不算错误）
-      if ((!prev.error || prev.error === 0) && isTorrentError(torrent)) {
+      if (!wasError && hasError) {
         notifyTorrentError(
           torrent.name,
           getTorrentErrorMessage(torrent) || 'Unknown error'
@@ -2595,11 +2612,13 @@ const checkTorrentStatusChanges = () => {
       }
     }
 
+    const hasError = isTorrentError(torrent);
     if (prev) {
       prev.status = torrent.status;
       prev.percentDone = torrent.percentDone;
       prev.recheckProgress = torrent.recheckProgress;
       prev.error = torrent.error;
+      prev.hasError = hasError;
       prev.generation = generation;
     } else {
       previousTorrentStates.set(torrent.id, {
@@ -2607,6 +2626,7 @@ const checkTorrentStatusChanges = () => {
         percentDone: torrent.percentDone,
         recheckProgress: torrent.recheckProgress,
         error: torrent.error,
+        hasError,
         generation,
       });
     }

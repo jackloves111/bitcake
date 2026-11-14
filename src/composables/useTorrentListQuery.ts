@@ -2,7 +2,7 @@ import { computed, onScopeDispose, ref, watch, type Ref } from "vue";
 import type { StatusFilter } from "@/stores/filter";
 import { TorrentStatusEnum, type Torrent } from "@/types/transmission";
 import { matchesTrackerFilter } from "@/utils/torrent";
-import { isTorrentError } from "@/utils/torrentStatus";
+import { isTorrentError, getTorrentErrorMessage } from "@/utils/torrentStatus";
 import { isSamePath, normalizePath } from "@/utils/path";
 
 export type TorrentSortOrder = "ascending" | "descending" | null;
@@ -136,7 +136,7 @@ export const useTorrentListQuery = (options: TorrentListQueryOptions) => {
       if (
         options.errorTypeFilter.value &&
         (!isTorrentError(torrent) ||
-          options.getErrorType(torrent.errorString) !==
+          options.getErrorType(getTorrentErrorMessage(torrent)) !==
             options.errorTypeFilter.value)
       ) {
         return false;

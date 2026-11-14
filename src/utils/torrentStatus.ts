@@ -1,5 +1,4 @@
-import type { Torrent } from '@/types/transmission'
-import { TorrentStatusEnum, type TorrentStatus } from '@/types/torrent'
+import { TorrentStatusEnum, type TorrentStatus, type TorrentTrackerStat } from '@/types/torrent'
 
 /**
  * 种子错误等级（沿用 Transmission RPC 的 error 字段语义）
@@ -65,26 +64,68 @@ export const isHealthyTrackerResponse = (message?: string | null): boolean => {
 }
 
 /**
- * 取出种子真正的错误描述
- * tracker 的正常响应（如 `ook`）会被过滤掉，返回 undefined
+ * 从 trackerStats 中提取汇报失败的错误描述
+ * - 若种子处于已暂停状态（STOPPED），视为用户主动暂停，不判定为 tracker 异常
+ * - 只要有任意一个 tracker 汇报成功（lastAnnounceSucceeded === true），说明通信正常，不判定为异常
+ * - 仅当所有尝试过汇报的 tracker 均失败、且存在非正常响应时，返回失败原因
  */
-export const getTorrentErrorMessage = (torrent: Pick<Torrent, 'errorString'>): string | undefined => {
-  const raw = torrent?.errorString
-  if (typeof raw !== 'string') return undefined
+export const getTrackerErrorMessage = (
+  trackerStats?: TorrentTrackerStat[],
+  status?: TorrentStatus
+): string | undefined => {
+  if (!trackerStats || !trackerStats.length) return undefined
+  if (status === TorrentStatusEnum.STOPPED) return undefined
 
-  const trimmed = raw.trim()
-  if (!trimmed) return undefined
+  const hasSuccess = trackerStats.some((stat) => stat.lastAnnounceSucceeded)
+  if (hasSuccess) return undefined
 
-  return isHealthyTrackerResponse(trimmed) ? undefined : trimmed
+  for (const stat of trackerStats) {
+    const result = (stat.lastAnnounceResult || '').trim()
+    const hasAnnounced = stat.hasAnnounced ?? Boolean(result)
+
+    if (hasAnnounced && !stat.lastAnnounceSucceeded && result) {
+      if (!isHealthyTrackerResponse(result)) {
+        return result
+      }
+    }
+  }
+
+  return undefined
+}
+
+export type TorrentStatusCandidate = {
+  status?: TorrentStatus
+  error?: number
+  errorString?: string
+  trackerStats?: TorrentTrackerStat[]
+}
+
+/**
+ * 取出种子真正的错误描述
+ * 1. 优先检查 errorString（本地错误、致命业务错误等）
+ * 2. 若 errorString 为空，回退检查 trackerStats（捕获 Transmission 未写入 errorString 的网络汇报失败）
+ * 3. tracker 的正常响应（如 ook/success）会被过滤掉，返回 undefined
+ */
+export const getTorrentErrorMessage = (torrent?: TorrentStatusCandidate | null): string | undefined => {
+  if (!torrent) return undefined
+
+  const raw = torrent.errorString
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (trimmed && !isHealthyTrackerResponse(trimmed)) {
+      return trimmed
+    }
+  }
+
+  return getTrackerErrorMessage(torrent.trackerStats, torrent.status)
 }
 
 /**
  * 统一的种子异常判定
  * - 本地错误（等级 >= 3）始终视为异常
- * - tracker 级错误只在存在「真实错误描述」时才视为异常，
- *   避免 `ook` 这类正常响应把健康种子标记成错误
+ * - tracker 级错误在存在「真实错误描述」（含 trackerStats 汇报失败）时视为异常
  */
-export const isTorrentError = (torrent: Pick<Torrent, 'error' | 'errorString'>): boolean => {
+export const isTorrentError = (torrent?: TorrentStatusCandidate | null): boolean => {
   if (!torrent) return false
 
   const code = Number(torrent.error ?? 0)

@@ -553,6 +553,7 @@ watch(
     torrent.errorString,
     torrent.trackerStats?.[0]?.announce,
     torrent.trackerStats?.[0]?.lastAnnounceSucceeded,
+    torrent.trackerStats?.[0]?.lastAnnounceResult,
   ]),
   loadReseedData,
   { immediate: true }

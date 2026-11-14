@@ -2,6 +2,7 @@ import { computed, type Ref } from "vue";
 import type { Torrent } from "@/types/transmission";
 import { getTrackerDisplayName, getTrackerHost } from "@/utils/torrent";
 import { normalizePath } from "@/utils/path";
+import { getTorrentErrorMessage } from "@/utils/torrentStatus";
 
 interface TorrentFacetOptions {
   torrents: Ref<Torrent[]>;
@@ -58,7 +59,7 @@ export const useTorrentFacets = (options: TorrentFacetOptions) => {
         if (normalizedDir) downloadDirs.add(normalizedDir);
       }
       if (options.isTorrentError(torrent)) {
-        errorTypes.add(options.getErrorType(torrent.errorString));
+        errorTypes.add(options.getErrorType(getTorrentErrorMessage(torrent)));
       }
 
       const trackerList = torrent.trackers ?? [];

@@ -1,5 +1,5 @@
 export interface AdaptivePollerOptions {
-  intervalMs: number
+  intervalMs: number | (() => number)
   maxIntervalMs?: number
   shouldRun?: () => boolean
 }
@@ -52,8 +52,21 @@ export class AdaptivePoller {
     this.options = options
   }
 
+  private getBaseInterval(): number {
+    const val = typeof this.options.intervalMs === 'function'
+      ? this.options.intervalMs()
+      : this.options.intervalMs
+    return Math.max(0, val)
+  }
+
+  restart(immediate = false) {
+    this.stop()
+    this.start(immediate)
+  }
+
   start(immediate = true) {
     if (this.active) return
+    if (this.getBaseInterval() <= 0) return
     this.active = true
     const generation = ++this.generation
     if (immediate) {
@@ -80,24 +93,28 @@ export class AdaptivePoller {
   }
 
   private getNextDelay() {
-    const maxInterval = this.options.maxIntervalMs ?? this.options.intervalMs
+    const baseInterval = this.getBaseInterval()
+    const maxInterval = this.options.maxIntervalMs ?? baseInterval
     return Math.min(
-      this.options.intervalMs * 2 ** this.consecutiveFailures,
+      baseInterval * 2 ** this.consecutiveFailures,
       maxInterval
     )
   }
 
   private schedule(generation: number) {
     if (!this.active || generation !== this.generation) return
+    const delay = this.getNextDelay()
+    if (delay <= 0) return
     this.timer = window.setTimeout(() => {
       this.timer = undefined
       void this.runScheduledTask(generation)
-    }, this.getNextDelay())
+    }, delay)
   }
 
   private async runScheduledTask(generation: number) {
     try {
-      if (this.options.shouldRun?.() !== false) {
+      const baseInterval = this.getBaseInterval()
+      if (baseInterval > 0 && this.options.shouldRun?.() !== false) {
         const succeeded = await this.executor.run(this.task)
         this.recordResult(succeeded)
       }

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef, computed } from 'vue'
+import { ref, shallowRef, computed, watch } from 'vue'
 import dayjs from 'dayjs'
 import * as api from '@/api/torrents'
 import type { SessionStats, SessionConfig } from '@/types/transmission'
@@ -7,8 +7,8 @@ import type { Torrent } from '@/types/transmission'
 import { TorrentStatusEnum } from '@/types/transmission'
 import { AdaptivePoller, SingleFlightExecutor } from '@/utils/polling'
 import { isTorrentError } from '@/utils/torrentStatus'
+import { usePreferencesStore } from './preferences'
 
-const POLL_INTERVAL = 3000
 const CONFIG_REFRESH_INTERVAL = 30_000
 const FREE_SPACE_REFRESH_INTERVAL = 15_000
 
@@ -20,6 +20,7 @@ const STATS_FIELDS = [
   'errorString',
   'rateDownload',
   'rateUpload',
+  'trackerStats',
 ]
 
 interface LoadOptions {
@@ -131,6 +132,7 @@ export const useSystemStatusStore = defineStore('systemStatus', () => {
             errorString: newT.errorString,
             rateDownload: newT.rateDownload,
             rateUpload: newT.rateUpload,
+            trackerStats: newT.trackerStats ?? existing.trackerStats,
           }
         }
         return newT
@@ -176,12 +178,27 @@ export const useSystemStatusStore = defineStore('systemStatus', () => {
     }
   }
 
+  const preferencesStore = usePreferencesStore()
+
   const poller = new AdaptivePoller(
     () => load({ silent: true }),
     {
-      intervalMs: POLL_INTERVAL,
+      intervalMs: () => preferencesStore.refreshInterval,
       maxIntervalMs: 30_000,
-      shouldRun: () => document.visibilityState !== 'hidden',
+      shouldRun: () =>
+        preferencesStore.refreshInterval > 0 &&
+        document.visibilityState !== 'hidden',
+    }
+  )
+
+  watch(
+    () => preferencesStore.refreshInterval,
+    (newInterval) => {
+      if (newInterval > 0) {
+        poller.restart(false)
+      } else {
+        poller.stop()
+      }
     }
   )
 

@@ -524,6 +524,28 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-divider content-position="left">{{ t('settings.preferences.webuiPreferences') }}</el-divider>
+            <el-row :gutter="16">
+              <el-col :xs="24" :sm="16" :md="12">
+                <el-form-item :label="t('settings.preferences.refreshInterval')">
+                  <el-select
+                    v-model="preferencesStore.refreshInterval"
+                    style="width: 100%"
+                    @change="handleRefreshIntervalChange"
+                  >
+                    <el-option
+                      v-for="opt in REFRESH_INTERVAL_OPTIONS"
+                      :key="opt.value"
+                      :label="t(opt.labelKey)"
+                      :value="opt.value"
+                    />
+                  </el-select>
+                  <div class="field-hint">
+                    {{ t('settings.preferences.refreshIntervalTip') }}
+                  </div>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
         </el-tab-pane>
 
@@ -564,8 +586,15 @@ import * as api from '@/api/torrents'
 import type { SessionConfig } from '@/types/transmission'
 import { useMediaQuery } from '@/utils/useMediaQuery'
 import { exportConfig, importConfig, filterConfig } from '@/utils/configExportImport'
+import { usePreferencesStore, REFRESH_INTERVAL_OPTIONS } from '@/stores/preferences'
 
 const { t } = useI18n()
+const preferencesStore = usePreferencesStore()
+
+const handleRefreshIntervalChange = (val: number) => {
+  preferencesStore.setRefreshInterval(val)
+  ElMessage.success(t('settings.settingsSaved'))
+}
 
 const loading = ref(false)
 const settings = ref<Partial<SessionConfig>>({})
@@ -1053,6 +1082,13 @@ onMounted(() => {
 .readonly-value {
   color: var(--el-text-color-regular);
   font-size: 14px;
+}
+
+.field-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bc-text-subtle);
 }
 
 @media (max-width: 768px) {
