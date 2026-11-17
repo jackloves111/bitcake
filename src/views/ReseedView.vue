@@ -178,17 +178,23 @@
     >
       <div v-if="selectedReseed" class="reseed-details">
         <el-descriptions :column="2" border>
-          <el-descriptions-item :label="t('reseed.detail.fileName')">
+          <el-descriptions-item :label="t('reseed.detail.fileName')" :span="2">
             {{ selectedReseed.fileName }}
           </el-descriptions-item>
-          <el-descriptions-item :label="t('reseed.detail.hash')">
-            {{ selectedReseed.hashString }}
+          <el-descriptions-item :label="t('reseed.detail.hash')" :span="2">
+            <span class="hash-value">{{ selectedReseed.hashString }}</span>
           </el-descriptions-item>
           <el-descriptions-item :label="t('reseed.detail.fileSize')">
             {{ formatSize(selectedReseed.totalSize) }}
           </el-descriptions-item>
-          <el-descriptions-item :label="t('reseed.detail.seedCount')">
+          <el-descriptions-item :label="t('reseed.detail.reseedCount')">
             {{ t('reseed.detail.trackerCount', { count: selectedReseed.trackerCount }) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('reseed.detail.seedCount')">
+            {{ selectedReseed.totalSeedsText }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('reseed.detail.leecherCount')">
+            {{ selectedReseed.totalLeechersText }}
           </el-descriptions-item>
           <el-descriptions-item :label="t('reseed.detail.totalUploaded')">
             {{ formatSize(selectedReseed.totalUploaded) }}
@@ -196,7 +202,7 @@
           <el-descriptions-item :label="t('reseed.detail.totalDownloaded')">
             {{ formatSize(selectedReseed.totalDownloaded) }}
           </el-descriptions-item>
-          <el-descriptions-item :label="t('reseed.detail.totalRatio')">
+          <el-descriptions-item :label="t('reseed.detail.totalRatio')" :span="2">
             <span :class="getRatioClass(selectedReseed.totalUploadRatio)">
               {{ selectedReseed.totalUploadRatio.toFixed(2) }}
             </span>
@@ -235,6 +241,26 @@
                   </el-tooltip>
                 </template>
                 <span v-else style="color: var(--bc-text-subtle)">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="seeders"
+              :label="t('reseed.detail.seeds')"
+              width="110"
+              sortable
+            >
+              <template #default="{ row }">
+                {{ row.seedersText }}
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="leechers"
+              :label="t('reseed.detail.leechers')"
+              width="110"
+              sortable
+            >
+              <template #default="{ row }">
+                {{ row.leechersText }}
               </template>
             </el-table-column>
             <el-table-column
@@ -387,6 +413,24 @@ interface ReseedTracker {
   errorDetail?: string // 错误详情
 }
 
+interface ReseedTorrentItem {
+  id: number
+  trackerName: string
+  status: TorrentStatus
+  percentDone: number
+  uploadRatio: number
+  uploadedEver: number
+  rateUpload: number
+  category?: string
+  downloadDir: string
+  errorString?: string
+  errorType?: string
+  seeders: number
+  seedersText: string
+  leechers: number
+  leechersText: string
+}
+
 interface ReseedData {
   fileName: string
   hashString: string
@@ -396,19 +440,53 @@ interface ReseedData {
   totalUploadRatio: number
   totalUploaded: number
   totalDownloaded: number
-  torrents: {
-    id: number
-    trackerName: string
-    status: TorrentStatus
-    percentDone: number
-    uploadRatio: number
-    uploadedEver: number
-    rateUpload: number
-    category?: string
-    downloadDir: string
-    errorString?: string
-    errorType?: string
-  }[]
+  totalSeeds: number
+  totalSeedsText: string
+  totalLeechers: number
+  totalLeechersText: string
+  torrents: ReseedTorrentItem[]
+}
+
+const getTrackerPeerCount = (
+  torrent: Torrent,
+  key: 'seederCount' | 'leecherCount'
+): number => {
+  let count = 0
+  for (const stat of torrent.trackerStats ?? []) {
+    const value = stat[key]
+    if (typeof value === 'number' && value > 0) {
+      count = Math.max(count, value)
+    }
+  }
+  return count
+}
+
+const formatPeerStatText = (total: number, connected: number): string => {
+  const connectedText = connected ?? 0
+  if (total > 0) {
+    return `${total} (${connectedText})`
+  }
+  return `${connectedText}`
+}
+
+const getTorrentSeeders = (torrent: Torrent) => {
+  const total = getTrackerPeerCount(torrent, 'seederCount')
+  const connected = torrent.peersSendingToUs ?? 0
+  return {
+    count: total,
+    connected,
+    text: formatPeerStatText(total, connected)
+  }
+}
+
+const getTorrentLeechers = (torrent: Torrent) => {
+  const total = getTrackerPeerCount(torrent, 'leecherCount')
+  const connected = torrent.peersGettingFromUs ?? 0
+  return {
+    count: total,
+    connected,
+    text: formatPeerStatText(total, connected)
+  }
 }
 
 // 错误消息映射：与 HomeView 共用 buildErrorMappings，避免关键词表双份漂移
@@ -505,6 +583,15 @@ const loadReseedData = () => {
     const totalDownloaded = torrents.reduce((sum, t) => sum + (t.downloadedEver || 0), 0)
     const totalUploadRatio = totalDownloaded > 0 ? totalUploaded / totalDownloaded : 0
 
+    // 计算做种和下载总数
+    const totalSeeds = torrents.reduce((sum, t) => sum + getTrackerPeerCount(t, 'seederCount'), 0)
+    const totalConnectedSeeds = torrents.reduce((sum, t) => sum + (t.peersSendingToUs || 0), 0)
+    const totalLeechers = torrents.reduce((sum, t) => sum + getTrackerPeerCount(t, 'leecherCount'), 0)
+    const totalConnectedLeechers = torrents.reduce((sum, t) => sum + (t.peersGettingFromUs || 0), 0)
+
+    const totalSeedsText = formatPeerStatText(totalSeeds, totalConnectedSeeds)
+    const totalLeechersText = formatPeerStatText(totalLeechers, totalConnectedLeechers)
+
     return {
       fileName: firstTorrent.name,
       hashString: firstTorrent.hashString,
@@ -514,8 +601,14 @@ const loadReseedData = () => {
       totalUploadRatio,
       totalUploaded,
       totalDownloaded,
+      totalSeeds,
+      totalSeedsText,
+      totalLeechers,
+      totalLeechersText,
       torrents: torrents.map(torrent => {
         const errorMessage = getTorrentErrorMessage(torrent)
+        const seedersInfo = getTorrentSeeders(torrent)
+        const leechersInfo = getTorrentLeechers(torrent)
         return {
           id: torrent.id,
           trackerName: torrent.trackerStats && torrent.trackerStats.length > 0 && torrent.trackerStats[0]
@@ -529,11 +622,25 @@ const loadReseedData = () => {
           category: torrent.category,
           downloadDir: torrent.downloadDir,
           errorString: errorMessage,
-          errorType: errorMessage ? getErrorType(errorMessage) : undefined
+          errorType: errorMessage ? getErrorType(errorMessage) : undefined,
+          seeders: seedersInfo.count,
+          seedersText: seedersInfo.text,
+          leechers: leechersInfo.count,
+          leechersText: leechersInfo.text
         }
       })
     }
   })
+
+  // 如果详情对话框处于打开状态，同步更新选中的辅种对象以保持数据实时响应
+  if (selectedReseed.value) {
+    const updated = reseedData.value.find(
+      r => r.hashString === selectedReseed.value?.hashString && r.fileName === selectedReseed.value?.fileName
+    )
+    if (updated) {
+      selectedReseed.value = updated
+    }
+  }
 }
 
 watch(
@@ -551,7 +658,11 @@ watch(
     torrent.category,
     torrent.downloadDir,
     torrent.errorString,
+    torrent.peersSendingToUs,
+    torrent.peersGettingFromUs,
     torrent.trackerStats?.[0]?.announce,
+    torrent.trackerStats?.[0]?.seederCount,
+    torrent.trackerStats?.[0]?.leecherCount,
     torrent.trackerStats?.[0]?.lastAnnounceSucceeded,
     torrent.trackerStats?.[0]?.lastAnnounceResult,
   ]),
@@ -864,6 +975,12 @@ onUnmounted(() => {
 .ratio-low {
   color: var(--bc-danger);
   font-variant-numeric: tabular-nums;
+}
+
+.reseed-details .hash-value {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
 }
 
 .reseed-details .torrents-list {
