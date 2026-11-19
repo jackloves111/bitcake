@@ -136,3 +136,15 @@ export const reloadTrackerSitesConfig = async (): Promise<void> => {
   trackerKeywords.splice(0, trackerKeywords.length)
   await loadTrackerSitesConfig()
 }
+
+/**
+ * 导出供 Web Worker 进行快速站点匹配的站点配置列表（已包含当前语言的显示名称）
+ */
+export const getTrackerSitesForWorker = (): Array<{ keyword: string; displayName: string }> => {
+  return trackerKeywords.map(({ keyword, siteName }) => {
+    const translationKey = `trackerSites.${siteName}`
+    const translated = i18n.global.t(translationKey)
+    const displayName = translated !== translationKey ? translated : siteName
+    return { keyword, displayName }
+  })
+}

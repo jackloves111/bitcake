@@ -382,13 +382,19 @@ import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useSystemStatusStore } from '@/stores/systemStatus'
-import { getTrackerDisplayName } from '@/utils/torrent'
-import { getTorrentErrorMessage, isTorrentError, getTorrentStatusText } from '@/utils/torrentStatus'
+import { getTrackerSitesForWorker } from '@/utils/torrent'
+import { getTorrentStatusText } from '@/utils/torrentStatus'
 import { formatBytes, formatSpeed } from '@/utils/format'
-import { buildErrorMappings, matchErrorMapping } from '@/utils/errorMapping'
+import { buildErrorMappings } from '@/utils/errorMapping'
 import * as api from '@/api/torrents'
-import type { Torrent, TorrentStatus } from '@/types/torrent'
-import { TorrentStatusEnum } from '@/types/torrent'
+import { TorrentStatusEnum, type TorrentStatus } from '@/types/torrent'
+import {
+  computeReseedData,
+  type ReseedData,
+  type ReseedTracker,
+  type ReseedWorkerInput,
+  type ReseedWorkerOutput,
+} from '@/workers/reseed.worker'
 
 const { t, locale } = useI18n()
 
@@ -403,99 +409,6 @@ function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
       fn.apply(this, args)
     }, delay)
   } as T
-}
-
-interface ReseedTracker {
-  announce: string
-  displayName: string
-  statusText: string
-  lastAnnounceSucceeded: boolean
-  errorDetail?: string // 错误详情
-}
-
-interface ReseedTorrentItem {
-  id: number
-  trackerName: string
-  status: TorrentStatus
-  percentDone: number
-  uploadRatio: number
-  uploadedEver: number
-  rateUpload: number
-  category?: string
-  downloadDir: string
-  errorString?: string
-  errorType?: string
-  seeders: number
-  seedersText: string
-  leechers: number
-  leechersText: string
-}
-
-interface ReseedData {
-  fileName: string
-  hashString: string
-  totalSize: number
-  trackerCount: number
-  trackers: ReseedTracker[]
-  totalUploadRatio: number
-  totalUploaded: number
-  totalDownloaded: number
-  totalSeeds: number
-  totalSeedsText: string
-  totalLeechers: number
-  totalLeechersText: string
-  torrents: ReseedTorrentItem[]
-}
-
-const getTrackerPeerCount = (
-  torrent: Torrent,
-  key: 'seederCount' | 'leecherCount'
-): number => {
-  let count = 0
-  for (const stat of torrent.trackerStats ?? []) {
-    const value = stat[key]
-    if (typeof value === 'number' && value > 0) {
-      count = Math.max(count, value)
-    }
-  }
-  return count
-}
-
-const formatPeerStatText = (total: number, connected: number): string => {
-  const connectedText = connected ?? 0
-  if (total > 0) {
-    return `${total} (${connectedText})`
-  }
-  return `${connectedText}`
-}
-
-const getTorrentSeeders = (torrent: Torrent) => {
-  const total = getTrackerPeerCount(torrent, 'seederCount')
-  const connected = torrent.peersSendingToUs ?? 0
-  return {
-    count: total,
-    connected,
-    text: formatPeerStatText(total, connected)
-  }
-}
-
-const getTorrentLeechers = (torrent: Torrent) => {
-  const total = getTrackerPeerCount(torrent, 'leecherCount')
-  const connected = torrent.peersGettingFromUs ?? 0
-  return {
-    count: total,
-    connected,
-    text: formatPeerStatText(total, connected)
-  }
-}
-
-// 错误消息映射：与 HomeView 共用 buildErrorMappings，避免关键词表双份漂移
-const errorMappings = buildErrorMappings({ t, namespace: 'reseed', locale: locale.value })
-
-// 获取错误类型（用于筛选）
-const getErrorType = (errorString?: string): string => {
-  if (!errorString) return t('reseed.errorType.otherError')
-  return matchErrorMapping(errorString, errorMappings)?.type ?? t('reseed.errorType.otherError')
 }
 
 const systemStatusStore = useSystemStatusStore()
@@ -528,118 +441,43 @@ const updateTableHeight = () => {
   tableHeight.value = Math.max(260, nextHeight)
 }
 
-// 加载辅种数据
-const loadReseedData = () => {
-  const torrents = systemStatusStore.torrents
+let reseedWorker: Worker | null = null
+let currentWorkerReqId = 0
 
-  // 按照文件名+文件大小分组（辅种判定规则）
-  const groupedByNameAndSize = new Map<string, Torrent[]>()
-
-  torrents.forEach(torrent => {
-    // 使用文件名和大小作为唯一标识
-    const key = `${torrent.name}|${torrent.totalSize}`
-    if (!groupedByNameAndSize.has(key)) {
-      groupedByNameAndSize.set(key, [])
-    }
-    groupedByNameAndSize.get(key)!.push(torrent)
-  })
-
-  // 显示所有种子，按文件名+大小分组
-  const reseedGroups = Array.from(groupedByNameAndSize.entries())
-
-  reseedData.value = reseedGroups.map(([_key, torrents]) => {
-    // 使用第一个种子的信息作为基准
-    const firstTorrent = torrents[0]
-    if (!firstTorrent) {
-      throw new Error('No torrent found in group')
-    }
-
-    // 收集所有 tracker 信息
-    const trackerMap = new Map<string, ReseedTracker>()
-    torrents.forEach(torrent => {
-      if (torrent.trackerStats && torrent.trackerStats.length > 0) {
-        const tracker = torrent.trackerStats[0]
-        if (!tracker) return
-        const announce = tracker.announce
-        if (!trackerMap.has(announce)) {
-          // 基于种子的错误信息判断是否异常，而不是 tracker.lastAnnounceSucceeded
-          // 注意：部分 tracker 对正常种子会返回 `ook` 之类的响应，不能算作异常
-          const hasError = isTorrentError(torrent)
-          const errorDetail = getTorrentErrorMessage(torrent)
-
-          trackerMap.set(announce, {
-            announce,
-            displayName: getTrackerDisplayName(announce),
-            statusText: hasError ? t('reseed.trackerStatus.abnormal') : t('reseed.trackerStatus.normal'),
-            lastAnnounceSucceeded: !hasError,
-            errorDetail
-          })
-        }
-      }
-    })
-
-    // 计算总上传量、下载量和分享率
-    const totalUploaded = torrents.reduce((sum, t) => sum + (t.uploadedEver || 0), 0)
-    const totalDownloaded = torrents.reduce((sum, t) => sum + (t.downloadedEver || 0), 0)
-    const totalUploadRatio = totalDownloaded > 0 ? totalUploaded / totalDownloaded : 0
-
-    // 计算做种和下载总数
-    const totalSeeds = torrents.reduce((sum, t) => sum + getTrackerPeerCount(t, 'seederCount'), 0)
-    const totalConnectedSeeds = torrents.reduce((sum, t) => sum + (t.peersSendingToUs || 0), 0)
-    const totalLeechers = torrents.reduce((sum, t) => sum + getTrackerPeerCount(t, 'leecherCount'), 0)
-    const totalConnectedLeechers = torrents.reduce((sum, t) => sum + (t.peersGettingFromUs || 0), 0)
-
-    const totalSeedsText = formatPeerStatText(totalSeeds, totalConnectedSeeds)
-    const totalLeechersText = formatPeerStatText(totalLeechers, totalConnectedLeechers)
-
-    return {
-      fileName: firstTorrent.name,
-      hashString: firstTorrent.hashString,
-      totalSize: firstTorrent.totalSize,
-      trackerCount: torrents.length,
-      trackers: Array.from(trackerMap.values()),
-      totalUploadRatio,
-      totalUploaded,
-      totalDownloaded,
-      totalSeeds,
-      totalSeedsText,
-      totalLeechers,
-      totalLeechersText,
-      torrents: torrents.map(torrent => {
-        const errorMessage = getTorrentErrorMessage(torrent)
-        const seedersInfo = getTorrentSeeders(torrent)
-        const leechersInfo = getTorrentLeechers(torrent)
-        return {
-          id: torrent.id,
-          trackerName: torrent.trackerStats && torrent.trackerStats.length > 0 && torrent.trackerStats[0]
-            ? getTrackerDisplayName(torrent.trackerStats[0].announce)
-            : t('reseed.unknownTracker'),
-          status: torrent.status,
-          percentDone: torrent.percentDone,
-          uploadRatio: torrent.uploadRatio,
-          uploadedEver: torrent.uploadedEver || 0,
-          rateUpload: torrent.rateUpload,
-          category: torrent.category,
-          downloadDir: torrent.downloadDir,
-          errorString: errorMessage,
-          errorType: errorMessage ? getErrorType(errorMessage) : undefined,
-          seeders: seedersInfo.count,
-          seedersText: seedersInfo.text,
-          leechers: leechersInfo.count,
-          leechersText: leechersInfo.text
-        }
-      })
-    }
-  })
-
-  // 如果详情对话框处于打开状态，同步更新选中的辅种对象以保持数据实时响应
+const syncSelectedReseed = () => {
   if (selectedReseed.value) {
     const updated = reseedData.value.find(
-      r => r.hashString === selectedReseed.value?.hashString && r.fileName === selectedReseed.value?.fileName
+      (r) => r.hashString === selectedReseed.value?.hashString && r.fileName === selectedReseed.value?.fileName
     )
     if (updated) {
       selectedReseed.value = updated
     }
+  }
+}
+
+// 加载辅种数据（优先通过 Web Worker 异步离线计算，确保极端数据量下主线程绝不掉帧）
+const loadReseedData = () => {
+  const torrents = systemStatusStore.torrents
+  const currentLocale = locale.value
+  const currentMappings = buildErrorMappings({ t, namespace: 'reseed', locale: currentLocale })
+  const payload: ReseedWorkerInput = {
+    requestId: ++currentWorkerReqId,
+    torrents,
+    errorMappings: currentMappings,
+    texts: {
+      trackerNormal: t('reseed.trackerStatus.normal'),
+      trackerAbnormal: t('reseed.trackerStatus.abnormal'),
+      unknownTracker: t('reseed.unknownTracker'),
+      otherError: t('reseed.errorType.otherError'),
+    },
+    trackerSites: getTrackerSitesForWorker(),
+  }
+
+  if (reseedWorker) {
+    reseedWorker.postMessage(payload)
+  } else {
+    reseedData.value = computeReseedData(payload)
+    syncSelectedReseed()
   }
 }
 
@@ -806,6 +644,23 @@ watch(locale, async () => {
 })
 
 onMounted(async () => {
+  if (typeof Worker !== 'undefined') {
+    try {
+      reseedWorker = new Worker(new URL('@/workers/reseed.worker.ts', import.meta.url), {
+        type: 'module',
+      })
+      reseedWorker.onmessage = (e: MessageEvent<ReseedWorkerOutput>) => {
+        if (e.data.requestId === currentWorkerReqId) {
+          reseedData.value = e.data.reseedData
+          syncSelectedReseed()
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to init reseed Web Worker, fallback to main thread:', e)
+      reseedWorker = null
+    }
+  }
+
   // 辅种分析依赖完整字段，不能复用系统状态轮询的精简种子对象。
   try {
     const result = await api.getTorrents()
@@ -823,6 +678,10 @@ const handleResize = debounce(updateTableHeight, 150)
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  if (reseedWorker) {
+    reseedWorker.terminate()
+    reseedWorker = null
+  }
 })
 </script>
 

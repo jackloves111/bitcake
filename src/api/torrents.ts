@@ -45,6 +45,7 @@ const configureConnectionInternal = (config: Partial<ServerConfig>) => {
       qbittorrentClient.setBaseUrl(currentConnection.url)
     }
     qbAuthenticated = false
+    resetQbSyncState()
   }
 }
 
@@ -487,10 +488,27 @@ interface QBTransferInfo {
   alltime_ul?: number
 }
 
-interface QBMainData {
-  torrents: Record<string, QBTorrentInfo>
+export interface QBSyncMainData {
+  rid: number
+  full_update?: boolean
+  torrents?: Record<string, Partial<QBTorrentInfo>>
+  torrents_removed?: string[]
+  categories?: Record<string, any>
+  categories_removed?: string[]
+  tags?: string[]
+  tags_removed?: string[]
   server_state?: {
     free_space_on_disk?: number
+    dl_info_speed?: number
+    up_info_speed?: number
+    dl_info_data?: number
+    up_info_data?: number
+    dl_rate_limit?: number
+    up_rate_limit?: number
+    alltime_dl?: number
+    alltime_ul?: number
+    connection_status?: string
+    [key: string]: any
   }
 }
 
@@ -556,6 +574,15 @@ const QB_KB = 1024
 const SECONDS_PER_MONTH = 30 * 24 * 60 * 60 // 30 days
 const qbHashToId = new Map<string, number>()
 const qbIdToHash = new Map<number, string>()
+let qbLastRid = 0
+const qbTorrentsCache = new Map<string, QBTorrentInfo>()
+let qbLastServerState: QBSyncMainData['server_state'] = undefined
+
+export const resetQbSyncState = () => {
+  qbLastRid = 0
+  qbTorrentsCache.clear()
+  qbLastServerState = undefined
+}
 
 /**
  * 计算种子流行度
@@ -794,15 +821,86 @@ const qbEnsureAuth = async () => {
   throw new Error('qBittorrent 认证失败：用户名或密码错误')
 }
 
+/**
+ * 使用 qBittorrent /sync/maindata 接口进行增量差分同步或首轮全量同步
+ */
+async function qbSyncMainData(): Promise<{
+  isFullUpdate: boolean
+  updatedTorrents: Torrent[]
+  removedIds: number[]
+}> {
+  await qbEnsureAuth()
+  const data = await qbittorrentClient.get<QBSyncMainData>(`/sync/maindata?rid=${qbLastRid}`)
+  const isFullUpdate = Boolean(data.full_update) || qbLastRid === 0
+  qbLastRid = data.rid
+
+  if (data.server_state) {
+    if (!qbLastServerState) {
+      qbLastServerState = { ...data.server_state }
+    } else {
+      Object.assign(qbLastServerState, data.server_state)
+    }
+  }
+
+  const removedIds: number[] = []
+
+  if (isFullUpdate) {
+    qbTorrentsCache.clear()
+    const mapped: Torrent[] = []
+    if (data.torrents) {
+      for (const [hash, rawInfo] of Object.entries(data.torrents)) {
+        const info = rawInfo as QBTorrentInfo
+        info.hash = hash
+        qbTorrentsCache.set(hash, info)
+        mapped.push(mapQBTorrent(info))
+      }
+    }
+    return {
+      isFullUpdate: true,
+      updatedTorrents: mapped,
+      removedIds: [],
+    }
+  }
+
+  // 增量同步模式：提取被删除的种子并转为数字 ID
+  if (data.torrents_removed && data.torrents_removed.length > 0) {
+    for (const hash of data.torrents_removed) {
+      const numId = qbHashToId.get(hash)
+      if (numId !== undefined) {
+        removedIds.push(numId)
+      }
+      qbTorrentsCache.delete(hash)
+    }
+  }
+
+  // 增量合并被更新或新添加的种子
+  const updatedTorrents: Torrent[] = []
+  if (data.torrents) {
+    for (const [hash, partial] of Object.entries(data.torrents)) {
+      const existing = qbTorrentsCache.get(hash)
+      if (existing) {
+        Object.assign(existing, partial)
+        existing.hash = hash
+        updatedTorrents.push(mapQBTorrent(existing))
+      } else {
+        const newInfo = { hash, ...partial } as QBTorrentInfo
+        qbTorrentsCache.set(hash, newInfo)
+        updatedTorrents.push(mapQBTorrent(newInfo))
+      }
+    }
+  }
+
+  return {
+    isFullUpdate: false,
+    updatedTorrents,
+    removedIds,
+  }
+}
+
 const qbResolveHashes = async (ids: number[]) => {
   const missing = ids.filter((id) => !qbIdToHash.has(id))
   if (missing.length) {
-    const info = await qbittorrentClient.get<QBTorrentInfo[]>('/torrents/info')
-    qbHashToId.clear()
-    qbIdToHash.clear()
-    info.forEach((item) => {
-      registerQbHash(item.hash)
-    })
+    await qbSyncMainData()
   }
   return ids.map((id) => qbIdToHash.get(id)).filter((hash): hash is string => Boolean(hash))
 }
@@ -810,24 +908,19 @@ const qbResolveHashes = async (ids: number[]) => {
 const qbittorrentService: TorrentService = {
   async getTorrents(_fields, options) {
     await qbEnsureAuth()
-    let torrents: QBTorrentInfo[] = []
+
+    // 1. 指定明确数字 ID 集合的查询（如查看详情弹窗）
     if (options?.ids && Array.isArray(options.ids) && options.ids.length) {
       const hashes = await qbResolveHashes(options.ids)
       if (!hashes.length) {
         return { torrents: [] }
       }
       const joined = hashes.map((hash) => encodeURIComponent(hash)).join('|')
-      torrents = await qbittorrentClient.get<QBTorrentInfo[]>(
+      const torrents = await qbittorrentClient.get<QBTorrentInfo[]>(
         `/torrents/info?hashes=${joined}`
       )
-    } else {
-      // qBittorrent 不支持 'recently-active'，退化为全量列表
-      torrents = await qbittorrentClient.get<QBTorrentInfo[]>('/torrents/info')
-    }
-    const mapped: Torrent[] = []
-    for (const info of torrents) {
-      let torrent: Torrent
-      if (options?.ids?.length) {
+      const mapped: Torrent[] = []
+      for (const info of torrents) {
         const [files, qbTrackers, properties, peersResponse] = await Promise.all([
           qbittorrentClient.get<QBTorrentFile[]>(
             `/torrents/files?hash=${encodeURIComponent(info.hash)}`
@@ -844,7 +937,7 @@ const qbittorrentService: TorrentService = {
             )
             .catch(() => null),
         ])
-        torrent = mapQBTorrent(info, properties)
+        const torrent = mapQBTorrent(info, properties)
         const torrentFiles: TorrentFile[] = files.map((file) => ({
           name: file.name,
           length: file.size,
@@ -881,12 +974,31 @@ const qbittorrentService: TorrentService = {
         }
 
         torrent.peers = mapQBTorrentPeers(peersResponse)
-      } else {
-        torrent = mapQBTorrent(info)
+        mapped.push(torrent)
       }
-      mapped.push(torrent)
+      return { torrents: mapped }
     }
-    return { torrents: mapped }
+
+    // 2. 轮询增量模式：利用 qBittorrent /sync/maindata?rid=xxx 差分同步
+    if (options?.ids === 'recently-active') {
+      const syncResult = await qbSyncMainData()
+      return {
+        torrents: syncResult.updatedTorrents,
+        removed: syncResult.removedIds,
+      }
+    }
+
+    // 3. 全量列表获取（如首次载入、辅种视图、统计视图）
+    if (qbTorrentsCache.size === 0 || qbLastRid === 0) {
+      qbLastRid = 0
+      const syncResult = await qbSyncMainData()
+      return { torrents: syncResult.updatedTorrents }
+    }
+
+    // 若本地已有全量缓存，通过增量差分追平最新数据并返回全量列表
+    await qbSyncMainData()
+    const allTorrents = Array.from(qbTorrentsCache.values()).map((info) => mapQBTorrent(info))
+    return { torrents: allTorrents }
   },
 
   async addTorrent(payload) {
@@ -1102,13 +1214,19 @@ const qbittorrentService: TorrentService = {
 
   async getSessionStats() {
     await qbEnsureAuth()
-    const [transfer, maindata] = await Promise.all([
-      qbittorrentClient.get<QBTransferInfo>('/transfer/info'),
-      qbittorrentClient.get<QBMainData>('/sync/maindata'),
-    ])
-    const torrents = Object.values(maindata.torrents || {})
-    const pausedCount = torrents.filter((item) => item.state?.startsWith('paused')).length
-    const activeCount = torrents.length - pausedCount
+    if (qbTorrentsCache.size === 0) {
+      await qbSyncMainData()
+    }
+    const transfer = await qbittorrentClient.get<QBTransferInfo>('/transfer/info')
+    let pausedCount = 0
+    let activeCount = 0
+    for (const item of qbTorrentsCache.values()) {
+      if (item.state?.startsWith('paused')) {
+        pausedCount++
+      } else {
+        activeCount++
+      }
+    }
     const totals = {
       uploadedBytes: transfer.alltime_ul || transfer.up_info_data || 0,
       downloadedBytes: transfer.alltime_dl || transfer.dl_info_data || 0,
@@ -1121,7 +1239,7 @@ const qbittorrentService: TorrentService = {
       uploadSpeed: transfer.up_info_speed,
       activeTorrentCount: activeCount,
       pausedTorrentCount: pausedCount,
-      torrentCount: torrents.length,
+      torrentCount: qbTorrentsCache.size,
       'cumulative-stats': totals,
       'current-stats': totals,
     }
@@ -1366,10 +1484,16 @@ const qbittorrentService: TorrentService = {
 
   async getFreeSpace(path) {
     await qbEnsureAuth()
-    const data = await qbittorrentClient.get<QBMainData>('/sync/maindata')
+    if (qbLastServerState?.free_space_on_disk !== undefined) {
+      return {
+        path,
+        'size-bytes': qbLastServerState.free_space_on_disk,
+      }
+    }
+    await qbSyncMainData()
     return {
       path,
-      'size-bytes': data.server_state?.free_space_on_disk ?? 0,
+      'size-bytes': qbLastServerState?.free_space_on_disk ?? 0,
     }
   },
 
@@ -1393,6 +1517,7 @@ const qbittorrentService: TorrentService = {
 
     if (typeof result === 'string' && result.toLowerCase().startsWith('ok')) {
       qbAuthenticated = true
+      resetQbSyncState()
       return
     }
 
@@ -1467,6 +1592,7 @@ export const logout = async () => {
       console.warn('qBittorrent logout failed', e)
     }
     qbAuthenticated = false
+    resetQbSyncState()
     currentConnection.username = ''
     currentConnection.password = ''
   }
