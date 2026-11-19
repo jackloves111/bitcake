@@ -11,7 +11,7 @@ import {
   type ColumnSortHandler,
   type SortBy,
 } from "element-plus";
-import type { Torrent } from "@/types/transmission";
+import type { Torrent, TorrentStatus } from "@/types/transmission";
 import type { TorrentSortOrder } from "@/composables/useTorrentListQuery";
 import { formatBytes, formatSpeed } from "@/utils/format";
 
@@ -62,6 +62,7 @@ interface TorrentTableOptions {
   getLeechers: (torrent: Torrent) => string;
   formatDate: (timestamp?: number) => string;
   formatLastActivity: (timestamp?: number) => string;
+  formatETA?: (eta?: number, status?: TorrentStatus) => string;
   unknownErrorText: () => string;
 }
 
@@ -247,6 +248,15 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
         return h("span", formatSpeed(row.rateDownload));
       case "rateUpload":
         return h("span", formatSpeed(row.rateUpload));
+      case "eta":
+        return h(
+          "span",
+          options.formatETA
+            ? options.formatETA(row.eta, row.status)
+            : row.eta !== undefined && row.eta >= 0
+              ? `${row.eta}s`
+              : "—"
+        );
       case "speedLimit": {
         const info = options.formatSpeedLimit(row);
         const cell = h(
@@ -271,8 +281,14 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
         return h("span", options.getSeeders(row));
       case "peersUploading":
         return h("span", options.getLeechers(row));
+      case "peersConnected":
+        return h("span", String(row.peersConnected ?? 0));
       case "uploadedEver":
         return h("span", formatBytes(row.uploadedEver || 0));
+      case "downloadedEver":
+        return h("span", formatBytes(row.downloadedEver || 0));
+      case "leftUntilDone":
+        return h("span", formatBytes(row.leftUntilDone || 0));
       case "downloadDir":
         return h(
           "span",
@@ -281,6 +297,8 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
         );
       case "addedDate":
         return h("span", options.formatDate(row.addedDate));
+      case "doneDate":
+        return h("span", row.doneDate ? options.formatDate(row.doneDate) : "—");
       case "activityDate":
         return h(
           "span",
@@ -303,6 +321,12 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
           : h("span", "—");
       case "category":
         return h("span", row.category || "—");
+      case "hashString":
+        return h(
+          "span",
+          { class: "torrent-cell-ellipsis", title: row.hashString || "—" },
+          row.hashString || "—"
+        );
       default:
         return h("span", "—");
     }

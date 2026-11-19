@@ -874,6 +874,9 @@ const qbittorrentService: TorrentService = {
             announce: tracker.url,
             lastAnnounceSucceeded: tracker.status === 2,
             lastAnnounceTime: 0,
+            lastAnnounceResult: tracker.msg || (tracker.status === 2 ? 'Success' : ''),
+            hasAnnounced: tracker.status !== 1,
+            announceState: tracker.status === 3 ? 3 : 0,
             seederCount: tracker.num_seeds,
             leecherCount: tracker.num_leeches,
           }))

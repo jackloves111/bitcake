@@ -16,16 +16,38 @@
 /* ---------------- 工具栏 ---------------- */
 .toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
 }
 
 .actions-group {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  flex: 1 1 auto;
+}
+
+.action-btn-group {
+  display: inline-flex;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.selection-badge {
+  font-size: 13px;
+  color: var(--bc-accent-strong);
+  background: var(--bc-accent-soft);
+  padding: 4px 10px;
+  border-radius: var(--bc-radius-pill);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .view-toggle {
@@ -35,27 +57,27 @@
 
 /* ---------------- 筛选区 ---------------- */
 .filter-submenu {
-  padding: 12px;
+  padding: 8px 12px;
   background: var(--bc-surface);
   border: 1px solid var(--bc-border);
   border-radius: var(--bc-radius-md);
   box-shadow: var(--bc-shadow-sm);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .submenu-section {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .filter-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: 1 1 auto;
   flex-wrap: wrap;
 }
@@ -159,15 +181,15 @@
 
 @media (min-width: 1024px) {
   .home-view {
-    gap: 16px;
+    gap: 10px;
   }
 
   .filter-select {
-    width: 200px;
+    width: 150px;
   }
 
   .filter-input {
-    width: 240px;
+    width: 200px;
   }
 
   .update-info {
@@ -214,16 +236,19 @@
    ========================================================================== */
 
 .column-toggle-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 50vh;
+  max-height: 55vh;
   overflow-y: auto;
   padding: 0 10px 10px;
 }
 
+.column-toggle-list :deep(.el-checkbox-group) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px 16px;
+}
+
 .column-toggle-item {
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .filter-toggle {
@@ -460,6 +485,27 @@
 .files-actions-buttons {
   display: flex;
   gap: 8px;
+}
+
+.tracker-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tracker-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--bc-surface-muted);
+  border-radius: var(--bc-radius-sm);
+  font-size: 13px;
+}
+
+.tracker-count {
+  color: var(--bc-text-muted);
+  font-weight: 500;
 }
 
 .files-tree {

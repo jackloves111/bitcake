@@ -171,6 +171,8 @@ export const useTorrentListQuery = (options: TorrentListQueryOptions) => {
           : Number.MAX_SAFE_INTEGER;
       case "downloadDir":
         return (normalizePath(torrent.downloadDir) || "").toLowerCase();
+      case "hashString":
+        return (torrent.hashString || "").toLowerCase();
       default:
         return (torrent as unknown as Record<string, unknown>)[prop] ?? 0;
     }
