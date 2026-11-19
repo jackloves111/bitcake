@@ -35,6 +35,7 @@ async function loadTrackerSitesConfig(): Promise<void> {
       const config: TrackerSitesConfig = await response.json()
 
       trackerKeywords.splice(0, trackerKeywords.length)
+      trackerSiteCache.clear()
       config.sites.forEach(site => {
         site.trackers.forEach(tracker => {
           trackerKeywords.push({ keyword: tracker.toLowerCase(), siteName: site.name })
@@ -54,24 +55,37 @@ async function loadTrackerSitesConfig(): Promise<void> {
 // 应用启动时立即开始加载配置
 loadTrackerSitesConfig()
 
+const trackerHostCache = new Map<string, string>()
+const trackerSiteCache = new Map<string, string | null>()
+
 export const getTrackerHost = (announce: string): string => {
+  const cached = trackerHostCache.get(announce)
+  if (cached !== undefined) return cached
+  let host = announce
   try {
     const url = new URL(announce)
-    return url.host || announce
+    host = url.host || announce
   } catch {
-    return announce
+    host = announce
   }
+  trackerHostCache.set(announce, host)
+  return host
 }
 
 const findSiteNameByAnnounce = (announce: string): string | null => {
+  const cached = trackerSiteCache.get(announce)
+  if (cached !== undefined) return cached
   const host = getTrackerHost(announce).toLowerCase()
   const full = announce.toLowerCase()
+  let result: string | null = null
   for (const { keyword, siteName } of trackerKeywords) {
     if (host.includes(keyword) || full.includes(keyword)) {
-      return siteName
+      result = siteName
+      break
     }
   }
-  return null
+  trackerSiteCache.set(announce, result)
+  return result
 }
 
 /**
@@ -117,6 +131,8 @@ export const ensureTrackerConfigLoaded = async (): Promise<void> => {
 export const reloadTrackerSitesConfig = async (): Promise<void> => {
   configLoaded = false
   configLoading = null
+  trackerHostCache.clear()
+  trackerSiteCache.clear()
   trackerKeywords.splice(0, trackerKeywords.length)
   await loadTrackerSitesConfig()
 }

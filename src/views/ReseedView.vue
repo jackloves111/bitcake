@@ -377,7 +377,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, shallowRef, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -502,7 +502,7 @@ const systemStatusStore = useSystemStatusStore()
 const searchKeyword = ref('')
 const debouncedSearchKeyword = ref('')
 const filterMode = ref<'all' | 'reseed'>('all')
-const reseedData = ref<ReseedData[]>([])
+const reseedData = shallowRef<ReseedData[]>([])
 const detailDialogVisible = ref(false)
 const selectedReseed = ref<ReseedData | null>(null)
 const deleteDialogVisible = ref(false)
@@ -644,28 +644,7 @@ const loadReseedData = () => {
 }
 
 watch(
-  () => systemStatusStore.torrents.map((torrent) => [
-    torrent.id,
-    torrent.name,
-    torrent.hashString,
-    torrent.totalSize,
-    torrent.status,
-    torrent.percentDone,
-    torrent.uploadRatio,
-    torrent.uploadedEver,
-    torrent.downloadedEver,
-    torrent.rateUpload,
-    torrent.category,
-    torrent.downloadDir,
-    torrent.errorString,
-    torrent.peersSendingToUs,
-    torrent.peersGettingFromUs,
-    torrent.trackerStats?.[0]?.announce,
-    torrent.trackerStats?.[0]?.seederCount,
-    torrent.trackerStats?.[0]?.leecherCount,
-    torrent.trackerStats?.[0]?.lastAnnounceSucceeded,
-    torrent.trackerStats?.[0]?.lastAnnounceResult,
-  ]),
+  () => systemStatusStore.torrents,
   loadReseedData,
   { immediate: true }
 )
@@ -837,11 +816,13 @@ onMounted(async () => {
 
   await nextTick()
   updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
+  window.addEventListener('resize', handleResize)
 })
 
+const handleResize = debounce(updateTableHeight, 150)
+
 onUnmounted(() => {
-  window.removeEventListener('resize', updateTableHeight)
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 

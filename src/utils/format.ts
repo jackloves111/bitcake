@@ -1,25 +1,27 @@
+const SIZES = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'] as const
+
 /**
  * 格式化字节大小
  * @param bytes 字节数
  * @returns 格式化后的字符串，如 "1.5 MB"
  */
 export const formatBytes = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
+  if (!bytes || bytes <= 0 || !Number.isFinite(bytes)) return '0 B'
 
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-
-  let i = Math.floor(Math.log(bytes) / Math.log(k))
-  let value = bytes / Math.pow(k, i)
-
-  // 如果值 >= 1000，升级到下一个单位，避免显示 1001 KB 这样的情况
-  if (value >= 1000 && i < sizes.length - 1) {
+  let i = 0
+  let value = bytes
+  while (value >= 1024 && i < SIZES.length - 1) {
+    value /= 1024
     i++
-    value = bytes / Math.pow(k, i)
   }
 
-  // 最多保留一位小数
-  return `${value.toFixed(1)} ${sizes[i]}`
+  // 如果值 >= 1000 且未达到最大单位，升级到下一个单位（避免显示 1001 KB）
+  if (value >= 1000 && i < SIZES.length - 1) {
+    value /= 1024
+    i++
+  }
+
+  return `${value.toFixed(1)} ${SIZES[i]}`
 }
 
 /**
@@ -28,6 +30,6 @@ export const formatBytes = (bytes: number): string => {
  * @returns 格式化后的速度字符串，如 "1.5 MB/s"
  */
 export const formatSpeed = (bytesPerSecond: number): string => {
-  if (bytesPerSecond === 0) return '0 B/s'
+  if (!bytesPerSecond || bytesPerSecond <= 0 || !Number.isFinite(bytesPerSecond)) return '0 B/s'
   return `${formatBytes(bytesPerSecond)}/s`
 }

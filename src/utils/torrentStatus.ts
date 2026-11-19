@@ -45,6 +45,10 @@ const normalizeTrackerResponse = (message: string): string =>
     .replace(LABEL_PREFIX_PATTERN, '')
     .replace(/[^a-z0-9]/g, '')
 
+const HEALTHY_RESPONSE_SET = new Set(
+  TRACKER_HEALTHY_RESPONSES.map(normalizeTrackerResponse)
+)
+
 /**
  * 判断 tracker 返回文本是否属于「正常响应」
  * 空字符串同样视为正常（没有任何错误描述）
@@ -60,7 +64,7 @@ export const isHealthyTrackerResponse = (message?: string | null): boolean => {
   // 200 OK
   if (/^\d{3}ok$/.test(normalized)) return true
 
-  return TRACKER_HEALTHY_RESPONSES.some((item) => normalizeTrackerResponse(item) === normalized)
+  return HEALTHY_RESPONSE_SET.has(normalized)
 }
 
 /**
@@ -156,4 +160,23 @@ export const getTorrentStatusText = (
   t: (key: string) => string,
   status: TorrentStatus,
   fallback: string
-): string => buildTorrentStatusTextMap(t)[status] ?? fallback
+): string => {
+  switch (status) {
+    case TorrentStatusEnum.STOPPED:
+      return t('status.stopped')
+    case TorrentStatusEnum.CHECK_WAIT:
+      return t('status.waitCheck')
+    case TorrentStatusEnum.CHECK:
+      return t('status.checking')
+    case TorrentStatusEnum.DOWNLOAD_WAIT:
+      return t('status.waitDownload')
+    case TorrentStatusEnum.DOWNLOAD:
+      return t('status.downloading')
+    case TorrentStatusEnum.SEED_WAIT:
+      return t('status.waitSeed')
+    case TorrentStatusEnum.SEED:
+      return t('status.seeding')
+    default:
+      return fallback
+  }
+}

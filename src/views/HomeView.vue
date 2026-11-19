@@ -378,6 +378,7 @@
       v-model="showAddDialog"
       :title="t('torrent.addTorrentBatch')"
       :width="defaultDialogWidth"
+      destroy-on-close
     >
       <el-form :model="addForm" label-width="100px">
         <el-form-item :label="t('torrent.source')">
@@ -436,6 +437,7 @@
       v-model="showLocationDialog"
       :title="t('torrent.changeLocation')"
       :width="defaultDialogWidth"
+      destroy-on-close
     >
       <el-form :model="locationForm" label-width="120px">
         <el-form-item :label="t('torrent.newSaveDir')">
@@ -463,6 +465,7 @@
       v-model="showCategoryDialog"
       :title="t('torrent.setCategory')"
       :width="defaultDialogWidth"
+      destroy-on-close
     >
       <el-form :model="categoryForm" label-width="80px">
         <el-form-item :label="t('torrent.categoryName')">
@@ -486,6 +489,7 @@
       v-model="showLabelsDialog"
       :title="t('torrent.modifyLabels')"
       :width="defaultDialogWidth"
+      destroy-on-close
     >
       <p class="dialog-subtitle">
         {{ labelsDialogTargetTorrents.length }} {{ t('torrent.torrentsCount') }}
@@ -564,6 +568,7 @@
       :title="t('torrent.torrentDetail')"
       :width="detailDialogWidth"
       class="detail-dialog"
+      destroy-on-close
     >
       <el-skeleton :loading="detailLoading" animated>
         <template #default>
@@ -915,6 +920,7 @@
       :title="limitDialogTitle"
       :width="limitDialogWidth"
       class="limit-dialog"
+      destroy-on-close
     >
       <p class="dialog-subtitle" v-if="limitDialogMode === 'batch'">
         {{ (limitDialogTargetTorrents.length === torrents.length ? t('torrent.allTorrents') : t('torrent.selected')) }}：{{ limitDialogTargetTorrents.length }} {{ t('torrent.torrentsCount') }}
@@ -1016,6 +1022,7 @@
       :title="t('torrent.batchReplaceTrackerTitle')"
       :width="isMobile ? '95%' : '500px'"
       class="replace-tracker-dialog"
+      destroy-on-close
     >
       <p class="dialog-subtitle">
         {{ t('torrent.replaceTrackerWarning', { count: torrents.length }) }}
@@ -1060,6 +1067,7 @@
       v-model="removeDialog.visible"
       :title="t('torrent.deleteItem')"
       :width="removeDialogWidth"
+      destroy-on-close
     >
       <p class="delete-message">
         {{
@@ -2729,6 +2737,7 @@ const checkTorrentStatusChanges = () => {
   
   torrents.value.forEach((torrent) => {
     const prev = previousTorrentStates.get(torrent.id);
+    const hasError = isTorrentError(torrent);
     
     if (prev) {
       // 检查是否下载完成（从非完成状态变为完成状态）
@@ -2737,7 +2746,6 @@ const checkTorrentStatusChanges = () => {
       }
       
       const wasError = prev.hasError ?? Boolean(prev.error && prev.error !== 0);
-      const hasError = isTorrentError(torrent);
 
       // 检查是否出错（tracker 的正常响应如 `ook` 不算错误）
       if (!wasError && hasError) {
@@ -2755,7 +2763,6 @@ const checkTorrentStatusChanges = () => {
       }
     }
 
-    const hasError = isTorrentError(torrent);
     if (prev) {
       prev.status = torrent.status;
       prev.percentDone = torrent.percentDone;

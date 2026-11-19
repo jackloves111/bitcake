@@ -184,7 +184,7 @@ import { GridComponent, LegendComponent, TooltipComponent, TitleComponent } from
 import * as api from '@/api/torrents'
 import { torrentBackendName } from '@/config/torrentClient'
 import type { Torrent } from '@/types/transmission'
-import type { TorrentTrackerStat } from '@/types/torrent'
+import { TorrentStatusEnum, type TorrentTrackerStat } from '@/types/torrent'
 import { useSystemStatusStore } from '@/stores/systemStatus'
 import { getTrackerDisplayName } from '@/utils/torrent'
 import { formatBytes, formatSpeed } from '@/utils/format'
@@ -274,7 +274,7 @@ const trackerStats = computed(() => {
     const entry = trackerMap.get(displayName)!
     entry.uploaded += torrent.uploadedEver || 0
     entry.downloaded += torrent.downloadedEver || 0
-    if (torrent.status === 6 && trackerStat) {
+    if (torrent.status === TorrentStatusEnum.SEED && trackerStat) {
       entry.seedingCount++
       entry.seedingSize += torrent.totalSize || 0
     }

@@ -823,8 +823,6 @@ const qbittorrentService: TorrentService = {
     } else {
       // qBittorrent 不支持 'recently-active'，退化为全量列表
       torrents = await qbittorrentClient.get<QBTorrentInfo[]>('/torrents/info')
-      qbHashToId.clear()
-      qbIdToHash.clear()
     }
     const mapped: Torrent[] = []
     for (const info of torrents) {

@@ -92,11 +92,12 @@ export const useTorrentListQuery = (options: TorrentListQueryOptions) => {
     const status = options.statusFilter.value;
 
     return options.torrents.value.filter((torrent) => {
-      if (
-        keyword &&
-        !(nameIndex.get(torrent.id) ?? torrent.name.toLowerCase()).includes(keyword)
-      ) {
-        return false;
+      if (keyword) {
+        const nameMatch = (nameIndex.get(torrent.id) ?? (torrent.name || '').toLowerCase()).includes(keyword)
+        const hashMatch = torrent.hashString && torrent.hashString.toLowerCase().includes(keyword)
+        if (!nameMatch && !hashMatch) {
+          return false
+        }
       }
 
       const matchesStatus =
