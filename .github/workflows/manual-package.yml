@@ -1,36 +1,19 @@
-name: Manual package
-
-# 手动触发：自动读取 package.json 的版本 → 构建两种皮肤 → 创建（或复用）tag → 发布 Release（附两个 zip）
-# 不依赖 snapshot.yml，也不修改它。
+name: Snapshot Release
+permissions:
+  contents: write  # 必需权限
+  packages: write  # Docker 镜像推送权限
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: '标签名，留空则自动使用 v<package.json 版本>'
-        required: false
-        type: string
-      overwrite:
-        description: '同名 Release 已存在时覆盖其中的资产文件'
-        required: false
-        type: boolean
-        default: true
-
-permissions:
-  contents: write
-
-concurrency:
-  group: manual-package-${{ github.ref }}
-  cancel-in-progress: false
+  workflow_dispatch:    # 手动触发：版本号取自 package.json
 
 jobs:
-  package:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # 获取完整提交历史（[[0]](#__0) [[10]](#__10)）
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,41 +25,18 @@ jobs:
         with:
           version: 9
 
-      - name: Read version from package.json
-        id: vars
-        shell: bash
-        env:
-          INPUT_TAG: ${{ github.event.inputs.tag }}
-        run: |
-          set -euo pipefail
-
-          VERSION=$(node -p 'require("./package.json").version')
-          if ! printf '%s' "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
-            echo "::error::package.json 版本号格式不合法: ${VERSION}"
-            exit 1
-          fi
-
-          TAG=$(printf '%s' "${INPUT_TAG}" | tr -d '[:space:]')
-          if [ -z "${TAG}" ]; then
-            TAG="v${VERSION}"
-          fi
-
-          if ! printf '%s' "${TAG}" | grep -Eq '^[A-Za-z0-9._-]+$'; then
-            echo "::error::非法标签名: ${TAG}"
-            exit 1
-          fi
-
-          if [ "${TAG#v}" != "${VERSION}" ]; then
-            echo "::error::标签 ${TAG} 与 package.json 版本 ${VERSION} 不匹配（应形如 v${VERSION}）"
-            exit 1
-          fi
-
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "package.json 版本: ${VERSION}，标签: ${TAG}"
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
+
+      - name: Extract package version
+        id: package-version
+        run: |
+          VERSION=$(jq -r .version package.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get short commit SHA
+        id: commit-id
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build Transmission version
         run: pnpm run build:transmission
@@ -84,97 +44,84 @@ jobs:
       - name: Build qBittorrent version
         run: pnpm run build:qbittorrent
 
-      - name: Compress build output
-        shell: bash
-        env:
-          VERSION: ${{ steps.vars.outputs.version }}
+      - name: Compress files to ZIP
         run: |
-          set -euo pipefail
-          (cd dist-transmission && zip -qr "../bitcake-${VERSION}-transmission.zip" .)
-          (cd dist-qbittorrent/public && zip -qr "../../bitcake-${VERSION}-qbittorrent.zip" .)
-          ls -lh bitcake-*.zip
+          # 压缩 Transmission 版本
+          cd dist-transmission
+          zip -r ../bitcake-${{ steps.package-version.outputs.version }}-transmission.zip .
+          cd ..
 
-      - name: Upload packaged builds
-        uses: actions/upload-artifact@v4
+          # 压缩 qBittorrent 版本 (在 public 子目录中)
+          cd dist-qbittorrent/public
+          zip -r ../../bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip .
+          cd ../..
+
+          # 输出文件路径供后续步骤使用
+          echo "TRANSMISSION_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-transmission.zip" >> $GITHUB_ENV
+          echo "QBITTORRENT_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip" >> $GITHUB_ENV
+
+      - name: Determine Release Version
+        id: version-clean
+        run: |
+          # 始终使用 package.json 中的版本号
+          VERSION=${{ steps.package-version.outputs.version }}
+          echo "clean_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Snapshot Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: bitcake-${{ steps.vars.outputs.version }}
-          path: bitcake-*.zip
-          if-no-files-found: error
-          retention-days: 7
+          tag_name: ${{ steps.version-clean.outputs.tag_name }}
+          name: ${{ steps.version-clean.outputs.clean_version }}
+          body: |
+            Automated snapshot build from commit ${{ github.sha }}
 
-      - name: Create tag if missing
-        shell: bash
+            ## 📦 Build Artifacts
+            - `bitcake-${{ steps.package-version.outputs.version }}-transmission.zip` - Transmission 客户端版本
+            - `bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip` - qBittorrent 客户端版本
+
+            ## 🐳 Docker Image
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/bitcake:${{ steps.version-clean.outputs.clean_version }}
+            docker pull ghcr.io/${{ github.repository_owner }}/bitcake:latest
+            ```
+          prerelease: false
+          files: |
+            ${{ env.TRANSMISSION_ZIP }}
+            ${{ env.QBITTORRENT_ZIP }}
         env:
-          TAG: ${{ steps.vars.outputs.tag }}
-          VERSION: ${{ steps.vars.outputs.version }}
-        run: |
-          set -euo pipefail
-          HEAD_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-            TAG_SHA=$(git rev-list -n 1 "refs/tags/${TAG}")
-            if [ "${TAG_SHA}" != "${HEAD_SHA}" ]; then
-              echo "::warning::标签 ${TAG} 已存在且指向 ${TAG_SHA}，与本次构建的 ${HEAD_SHA} 不同；Release 资产将挂在该标签上"
-            else
-              echo "标签 ${TAG} 已存在且指向当前提交，直接复用"
-            fi
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a "${TAG}" -m "Release ${VERSION}"
-          git push origin "refs/tags/${TAG}"
-          echo "已创建并推送标签 ${TAG}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 用 gh CLI + 重试，避免 GitHub 偶发 500 让发布步骤直接失败
-      - name: Publish Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.vars.outputs.tag }}
-          VERSION: ${{ steps.vars.outputs.version }}
-          OVERWRITE: ${{ github.event.inputs.overwrite }}
-          ACTOR: ${{ github.actor }}
-          SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
+      # Docker 镜像构建和推送
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-          retry() {
-            for attempt in 1 2 3 4 5; do
-              if "$@"; then
-                return 0
-              fi
-              echo "::warning::第 ${attempt} 次尝试失败，5 秒后重试: $*"
-              sleep 5
-            done
-            echo "::error::重试 5 次后仍然失败: $*"
-            return 1
-          }
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          {
-            echo "手动打包发布：\`${VERSION}\`（版本号自动取自 package.json）。"
-            echo
-            echo "- commit: \`${SHA}\`"
-            echo "- 触发人: @${ACTOR}"
-            echo
-            echo "## 📦 产物"
-            echo "- \`bitcake-${VERSION}-transmission.zip\`"
-            echo "- \`bitcake-${VERSION}-qbittorrent.zip\`"
-          } > release-notes.md
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-          if gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "Release ${TAG} 已存在，更新说明"
-            retry gh release edit "${TAG}" --title "${VERSION}" --notes-file release-notes.md
-          else
-            echo "创建 Release ${TAG}"
-            retry gh release create "${TAG}" --title "${VERSION}" --notes-file release-notes.md --target "${SHA}"
-          fi
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/bitcake
+          tags: |
+            type=raw,value=${{ steps.version-clean.outputs.clean_version }}
+            type=raw,value=latest
 
-          for file in bitcake-*.zip; do
-            if [ "${OVERWRITE}" = "true" ]; then
-              retry gh release upload "${TAG}" "${file}" --clobber
-            else
-              retry gh release upload "${TAG}" "${file}"
-            fi
-          done
-
-          echo "Release ${TAG} 已发布"
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
