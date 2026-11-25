@@ -311,6 +311,12 @@ pnpm build:qbittorrent
 pnpm build:both
 ```
 
+### 持续集成（PR 校验）
+
+`.github/workflows/ci.yml` 在 `pull_request`、`push main` 与手动触发时运行：安装依赖 → 类型检查 → 构建两种皮肤 → 打包成两个 zip，作为 **Artifacts** 上传（保留 7 天）。它只做校验，**不创建 Release、不推送镜像**，也不需要写权限，因此在 fork 提交的 PR 里也能安全运行。
+
+> fork 仓库默认关闭 Actions，第一次使用需进入 **Actions** 页点击 `I understand my workflows, go ahead and enable them`。来自 fork 的 PR 首次运行可能还需要维护者点 `Approve and run workflows`。
+
 ### 发布流程
 
 发布由 `.github/workflows/snapshot.yml` 完成，两种触发方式：
@@ -327,6 +333,8 @@ git push origin v1.1.3
 - `push_docker`：是否构建并推送 `ghcr.io/<owner>/bitcake` 多架构镜像（取消勾选则只产出 Release 压缩包）
 
 两种方式都会校验标签版本与 `package.json` 一致，然后构建两种皮肤、创建 GitHub Release（附 `bitcake-<version>-transmission.zip` 与 `-qbittorrent.zip`），并按需推送 `:<version>` 与 `:latest` 镜像。
+
+> 注意：**向他人仓库提交 PR 不会触发发布**。PR 里的 `GITHUB_TOKEN` 只有只读权限、也不注入 secrets，无法创建 Release 或推送镜像；正式发布需要在拥有写权限的仓库里推标签，或由维护者手动触发。
 
 ## 预览
 

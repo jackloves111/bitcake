@@ -1,0 +1,70 @@
+name: CI
+
+# 只做构建与校验，不创建 Release、不推送镜像。
+# 发布仍由 snapshot.yml 负责（tag push 或手动触发）。
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Read package version
+        id: package-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p 'require("./package.json").version')
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "package version: ${VERSION}"
+
+      - name: Type check
+        run: pnpm exec vue-tsc -b --force
+
+      - name: Build both skins
+        run: pnpm run build:both
+
+      - name: Compress build output
+        shell: bash
+        env:
+          VERSION: ${{ steps.package-version.outputs.value }}
+        run: |
+          set -euo pipefail
+          (cd dist-transmission && zip -qr "../bitcake-${VERSION}-transmission.zip" .)
+          (cd dist-qbittorrent/public && zip -qr "../../bitcake-${VERSION}-qbittorrent.zip" .)
+          ls -lh bitcake-*.zip
+
+      - name: Upload packaged builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitcake-${{ steps.package-version.outputs.value }}-${{ github.sha }}
+          path: bitcake-*.zip
+          if-no-files-found: error
+          retention-days: 7
