@@ -311,14 +311,6 @@ pnpm build:qbittorrent
 pnpm build:both
 ```
 
-### 持续集成（PR 校验）
-
-`.github/workflows/ci.yml` 在 `pull_request`、`push main` 与手动触发时运行：安装依赖 → 类型检查 → 构建两种皮肤 → 打包成两个 zip，作为 **Artifacts** 上传（保留 7 天）。它只做校验，**不创建 Release、不推送镜像**，也不需要写权限，因此在 fork 提交的 PR 里也能安全运行。
-
-> fork 仓库默认关闭 Actions，第一次使用需进入 **Actions** 页点击 `I understand my workflows, go ahead and enable them`。来自 fork 的 PR 首次运行可能还需要维护者点 `Approve and run workflows`。
-
-> 发布（Release）仍由拥有写权限的仓库推送 tag 触发（`.github/workflows/snapshot.yml`）；PR 不会触发发布，因为 PR 里的 `GITHUB_TOKEN` 只有只读权限，也不注入 secrets。
-
 ## 预览
 
 ![首页](preview/index.png)
