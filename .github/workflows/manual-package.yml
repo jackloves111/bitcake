@@ -1,17 +1,13 @@
 name: Manual package
 
-# 手动触发：输入版本号 → 构建两种皮肤 → 创建（或复用）tag → 发布 Release（附两个 zip）
+# 手动触发：自动读取 package.json 的版本 → 构建两种皮肤 → 创建（或复用）tag → 发布 Release（附两个 zip）
 # 不依赖 snapshot.yml，也不修改它。
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: '要打包的版本，必须与 package.json 的 version 一致，例如 1.1.3'
-        required: true
-        type: string
       tag:
-        description: '标签名，留空则使用 v<version>'
+        description: '标签名，留空则自动使用 v<package.json 版本>'
         required: false
         type: string
       overwrite:
@@ -24,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: manual-package-${{ github.event.inputs.version }}
+  group: manual-package-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -46,24 +42,17 @@ jobs:
         with:
           version: 9
 
-      - name: Resolve and validate version
+      - name: Read version from package.json
         id: vars
         shell: bash
         env:
-          INPUT_VERSION: ${{ github.event.inputs.version }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -euo pipefail
 
-          VERSION=$(printf '%s' "${INPUT_VERSION}" | tr -d '[:space:]')
-          if [ -z "${VERSION}" ]; then
-            echo "::error::请填写要打包的版本，例如 1.1.3"
-            exit 1
-          fi
-
-          PACKAGE_VERSION=$(node -p 'require("./package.json").version')
-          if [ "${VERSION}" != "${PACKAGE_VERSION}" ]; then
-            echo "::error::输入版本 ${VERSION} 与 package.json 的 ${PACKAGE_VERSION} 不一致"
+          VERSION=$(node -p 'require("./package.json").version')
+          if ! printf '%s' "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
+            echo "::error::package.json 版本号格式不合法: ${VERSION}"
             exit 1
           fi
 
@@ -78,13 +67,13 @@ jobs:
           fi
 
           if [ "${TAG#v}" != "${VERSION}" ]; then
-            echo "::error::标签 ${TAG} 与版本 ${VERSION} 不匹配（应形如 v${VERSION}）"
+            echo "::error::标签 ${TAG} 与 package.json 版本 ${VERSION} 不匹配（应形如 v${VERSION}）"
             exit 1
           fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "将打包 ${VERSION}，标签 ${TAG}"
+          echo "package.json 版本: ${VERSION}，标签: ${TAG}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -145,7 +134,7 @@ jobs:
           prerelease: false
           overwrite_files: ${{ github.event.inputs.overwrite }}
           body: |
-            手动打包发布：`${{ steps.vars.outputs.version }}`。
+            手动打包发布：`${{ steps.vars.outputs.version }}`（版本号自动取自 package.json）。
 
             - commit: `${{ github.sha }}`
             - 触发人: @${{ github.actor }}
