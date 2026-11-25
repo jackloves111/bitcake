@@ -125,23 +125,56 @@ jobs:
           git push origin "refs/tags/${TAG}"
           echo "已创建并推送标签 ${TAG}"
 
+      # 用 gh CLI + 重试，避免 GitHub 偶发 500 让发布步骤直接失败
       - name: Publish Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: ${{ steps.vars.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          prerelease: false
-          overwrite_files: ${{ github.event.inputs.overwrite }}
-          body: |
-            手动打包发布：`${{ steps.vars.outputs.version }}`（版本号自动取自 package.json）。
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          VERSION: ${{ steps.vars.outputs.version }}
+          OVERWRITE: ${{ github.event.inputs.overwrite }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
 
-            - commit: `${{ github.sha }}`
-            - 触发人: @${{ github.actor }}
+          retry() {
+            for attempt in 1 2 3 4 5; do
+              if "$@"; then
+                return 0
+              fi
+              echo "::warning::第 ${attempt} 次尝试失败，5 秒后重试: $*"
+              sleep 5
+            done
+            echo "::error::重试 5 次后仍然失败: $*"
+            return 1
+          }
 
-            ## 📦 产物
-            - `bitcake-${{ steps.vars.outputs.version }}-transmission.zip`
-            - `bitcake-${{ steps.vars.outputs.version }}-qbittorrent.zip`
-          files: |
-            bitcake-${{ steps.vars.outputs.version }}-transmission.zip
-            bitcake-${{ steps.vars.outputs.version }}-qbittorrent.zip
+          {
+            echo "手动打包发布：\`${VERSION}\`（版本号自动取自 package.json）。"
+            echo
+            echo "- commit: \`${SHA}\`"
+            echo "- 触发人: @${ACTOR}"
+            echo
+            echo "## 📦 产物"
+            echo "- \`bitcake-${VERSION}-transmission.zip\`"
+            echo "- \`bitcake-${VERSION}-qbittorrent.zip\`"
+          } > release-notes.md
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} 已存在，更新说明"
+            retry gh release edit "${TAG}" --title "${VERSION}" --notes-file release-notes.md
+          else
+            echo "创建 Release ${TAG}"
+            retry gh release create "${TAG}" --title "${VERSION}" --notes-file release-notes.md --target "${SHA}"
+          fi
+
+          for file in bitcake-*.zip; do
+            if [ "${OVERWRITE}" = "true" ]; then
+              retry gh release upload "${TAG}" "${file}" --clobber
+            else
+              retry gh release upload "${TAG}" "${file}"
+            fi
+          done
+
+          echo "Release ${TAG} 已发布"
