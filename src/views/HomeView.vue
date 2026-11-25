@@ -246,6 +246,8 @@
         :eta-text="formatETA(torrent.eta, torrent.status)"
         :ratio-text="formatRatio(torrent.uploadRatio)"
         :error-text="getCardErrorText(torrent)"
+        :moving="torrentMoves.isMoving(torrent.id)"
+        :moving-text="t('torrent.moving')"
         :labels="cardLabels"
         @toggle="(value: boolean) => toggleTorrentSelection(torrent, value)"
         @open="openDetailDialog(torrent)"
@@ -437,6 +439,7 @@
       v-model="showLocationDialog"
       :title="t('torrent.changeLocation')"
       :width="defaultDialogWidth"
+      :close-on-click-modal="false"
       destroy-on-close
     >
       <el-form :model="locationForm" label-width="120px">
@@ -448,15 +451,34 @@
             style="width: 100%"
             clearable
             trigger-on-focus
+            :disabled="locationSubmitting"
           />
         </el-form-item>
         <el-form-item label="">
-          <el-checkbox v-model="locationForm.move">{{ t('torrent.moveFiles') }}</el-checkbox>
+          <el-checkbox v-model="locationForm.move" :disabled="locationSubmitting">{{
+            t('torrent.moveFiles')
+          }}</el-checkbox>
         </el-form-item>
       </el-form>
+      <p v-if="locationSubmitting" class="location-submit-hint">
+        {{ t('torrent.message.movingHint') }}
+      </p>
       <template #footer>
-        <el-button @click="showLocationDialog = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="submitLocationChange">{{ t('common.confirm') }}</el-button>
+        <el-button :disabled="locationSubmitting" @click="showLocationDialog = false">{{
+          t('common.cancel')
+        }}</el-button>
+        <el-button
+          type="primary"
+          :loading="locationSubmitting"
+          class="location-submit-button"
+          @click="submitLocationChange"
+        >
+          {{
+            locationSubmitting
+              ? t('torrent.message.movingElapsed', { seconds: locationElapsed })
+              : t('common.confirm')
+          }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -1157,7 +1179,7 @@ import { isTransmission } from "@/config/torrentClient";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { buildErrorMappings, matchErrorMapping } from "@/utils/errorMapping";
-import { normalizePath } from "@/utils/path";
+import { normalizePath, isSamePath } from "@/utils/path";
 import { useNotifications } from "@/composables/useNotifications";
 import { useTorrentSelection } from "@/composables/useTorrentSelection";
 import { useTorrentListQuery } from "@/composables/useTorrentListQuery";
@@ -1167,9 +1189,11 @@ import {
 } from "@/composables/useTorrentTable";
 import { useTorrentFacets } from "@/composables/useTorrentFacets";
 import { usePreferencesStore } from "@/stores/preferences";
+import { useTorrentMovesStore } from "@/stores/torrentMoves";
 import { ElMessageBox } from "element-plus";
 
 const preferencesStore = usePreferencesStore();
+const torrentMoves = useTorrentMovesStore();
 const COLUMN_WIDTH_STORAGE_KEY = "tv_table_column_widths";
 const COLUMN_VISIBILITY_STORAGE_KEY = "tv_table_column_visibility";
 const showColumnDialog = ref(false);
@@ -1745,6 +1769,10 @@ const locationForm = ref({
 });
 const locationTarget = ref<Torrent | null>(null);
 const locationTargetIds = ref<number[]>([]);
+/** 正在等待"移动文件"请求返回（Transmission 搬完才回响应） */
+const locationSubmitting = ref(false);
+const locationElapsed = ref(0);
+let locationTimer: number | null = null;
 const showCategoryDialog = ref(false);
 const categoryForm = ref({
   category: "",
@@ -2662,11 +2690,53 @@ const performLoadTorrents = async (mode: TorrentLoadMode): Promise<void> => {
 const fullTorrentLoader = new SingleFlightExecutor<void>();
 const incrementalTorrentLoader = new SingleFlightExecutor<void>();
 const torrentUpdateQueue = new SerialExecutor();
+
+/**
+ * 用后端上报的状态对账后台移动（与 qB 的用法一致：界面只看种子状态）。
+ * 每个成功刷新周期调用一次。
+ */
+const reconcilePendingMoves = () => {
+  const events = torrentMoves.reconcile((id, record) => {
+    const torrent = torrents.value.find((item) => item.id === id);
+    if (!torrent) return "gone";
+    if (isSamePath(torrent.downloadDir, record.targetPath)) return "done";
+    // 搬移失败时 Transmission 会写入错误并暂停该种子
+    if (isTorrentError(torrent)) return "failed";
+    return "pending";
+  });
+
+  events.forEach((event) => {
+    const { completed, failed, stale } = event;
+    if (completed + failed === 0) return;
+    if (stale) {
+      ElMessage.info(
+        t('torrent.message.locationMoveUnconfirmed', { count: completed + failed })
+      );
+      return;
+    }
+    if (failed > 0) {
+      ElMessage.warning(
+        t('torrent.message.locationMoveIncomplete', { count: failed })
+      );
+      return;
+    }
+    ElMessage.success(
+      completed > 1
+        ? t('torrent.message.locationUpdatedMultiple', { count: completed })
+        : t('torrent.message.locationUpdated')
+    );
+  });
+};
+
 const loadTorrents = async (
   options: TorrentLoadOptions = {}
 ): Promise<boolean> => {
   const mode: TorrentLoadMode =
-    options.silent && isTransmission && !options.forceFull
+    // 有后台移动时必须全量拉取，才能拿到最新的 downloadDir 对账
+    options.silent &&
+    isTransmission &&
+    !options.forceFull &&
+    torrentMoves.activeCount === 0
       ? "incremental"
       : "full";
   const loader = mode === "incremental" ? incrementalTorrentLoader : fullTorrentLoader;
@@ -2676,6 +2746,8 @@ const loadTorrents = async (
     await loader.run(() =>
       torrentUpdateQueue.run(() => performLoadTorrents(mode))
     );
+    // 状态以后端为准：每次成功刷新后核对后台移动是否完成
+    reconcilePendingMoves();
     return true;
   } catch (error: unknown) {
     if (!options.silent) {
@@ -2689,6 +2761,11 @@ const loadTorrents = async (
 };
 
 const handleManualRefresh = async () => {
+  // 后台移动期间 Transmission 的 RPC 处于阻塞状态，刷新只会超时
+  if (torrentMoves.activeCount > 0) {
+    ElMessage.info(t('torrent.message.moveInProgress'));
+    return;
+  }
   clearTorrentSelection();
   try {
     await loadTorrents();
@@ -2705,6 +2782,8 @@ const torrentPoller = new AdaptivePoller(
     shouldRun: () =>
       preferencesStore.refreshInterval > 0 &&
       !isScrolling.value &&
+      // 正在等待移动结果时后端 RPC 被占用，轮询只会超时
+      !locationSubmitting.value &&
       (typeof document === "undefined" || document.visibilityState !== "hidden"),
   }
 );
@@ -3137,10 +3216,50 @@ const openLocationDialog = (torrent: Torrent, batchIds?: number[]) => {
   locationTargetIds.value = batchIds || [torrent.id];
   locationForm.value.path = normalizePath(torrent.downloadDir);
   locationForm.value.move = true;
+  locationSubmitting.value = false;
   showLocationDialog.value = true;
 };
 
+const stopLocationTimer = () => {
+  if (locationTimer !== null) {
+    window.clearInterval(locationTimer);
+    locationTimer = null;
+  }
+};
+
+const startLocationTimer = () => {
+  stopLocationTimer();
+  locationElapsed.value = 0;
+  locationTimer = window.setInterval(() => {
+    locationElapsed.value += 1;
+  }, 1000);
+};
+
+/** 移动结束后按目标目录核对结果（Transmission 即使搬移失败也返回 success） */
+const summarizeLocationResult = (ids: number[], targetPath: string) => {
+  let completed = 0;
+  let failed = 0;
+  ids.forEach((id) => {
+    const torrent = torrents.value.find((item) => item.id === id);
+    if (!torrent) return; // 种子已被删除，不计入失败
+    if (isSamePath(torrent.downloadDir, targetPath)) {
+      completed += 1;
+    } else {
+      failed += 1;
+    }
+  });
+  return { completed, failed };
+};
+
+/**
+ * 修改保存目录。
+ *
+ * 不设超时、等待后端结果：Transmission 是搬完文件才回响应，qB 是受理即回。
+ * 等待期间按钮显示动效与已等待时长；用户可随时关闭对话框转入后台，
+ * 后续由 reconcilePendingMoves 依据种子状态结算。
+ */
 const submitLocationChange = async () => {
+  if (locationSubmitting.value) return;
   if (!locationTargetIds.value.length) {
     showLocationDialog.value = false;
     return;
@@ -3150,22 +3269,77 @@ const submitLocationChange = async () => {
     ElMessage.warning(t('torrent.message.enterNewPath'));
     return;
   }
+
+  const ids = [...locationTargetIds.value];
+  const moveFiles = locationForm.value.move;
+  const record = torrentMoves.begin(ids, path, moveFiles);
+  locationSubmitting.value = true;
+  startLocationTimer();
+
   try {
-    await api.setTorrentLocation(
-      locationTargetIds.value,
-      path,
-      locationForm.value.move
-    );
+    // 超时为 0（见 apiMoveRequestTimeoutMs），这里一直等到后端返回真实结果
+    await api.setTorrentLocation(ids, path, moveFiles);
+
+    // 同一时刻的轮询对账可能已先结算该记录，避免重复提示
+    if (!torrentMoves.has(record.key)) {
+      showLocationDialog.value = false;
+      return;
+    }
+
+    torrentMoves.drop(record.key);
+    const loaded = await loadTorrents({ forceFull: true });
+    const { completed, failed } = summarizeLocationResult(ids, path);
+
+    showLocationDialog.value = false;
+    if (!loaded) {
+      ElMessage.info(
+        t('torrent.message.locationMoveUnconfirmed', { count: ids.length })
+      );
+      return;
+    }
+    if (failed > 0) {
+      ElMessage.warning(
+        t('torrent.message.locationMoveIncomplete', { count: failed })
+      );
+      return;
+    }
     ElMessage.success(
-      locationTargetIds.value.length > 1
-        ? t('torrent.message.locationUpdatedMultiple', { count: locationTargetIds.value.length })
+      completed > 1
+        ? t('torrent.message.locationUpdatedMultiple', { count: completed })
         : t('torrent.message.locationUpdated')
     );
-    showLocationDialog.value = false;
-    await reloadTorrentsAfterMutation();
   } catch (error: any) {
-    ElMessage.error(`${t('torrent.message.locationChangeFailed')}: ${error.message}`);
+    if (isTransmissionTimeout(error) || !isRpcRejected(error)) {
+      // 连接被反代/网络掐断，或超时：移动可能仍在服务端进行，转为后台对账
+      showLocationDialog.value = false;
+      ElMessage.info(t('torrent.message.locationMoveInBackground'));
+      return;
+    }
+    // 服务端明确拒绝：保留对话框，允许用户改正后重试
+    torrentMoves.drop(record.key);
+    ElMessage.error(
+      `${t('torrent.message.locationChangeFailed')}: ${error?.message ?? error}`
+    );
+  } finally {
+    locationSubmitting.value = false;
+    stopLocationTimer();
   }
+};
+
+/** 请求超时（含反代掐断），不代表后端没执行 */
+const isTransmissionTimeout = (error: any) => {
+  const message = typeof error?.message === "string" ? error.message : "";
+  return (
+    error?.code === "ECONNABORTED" ||
+    error?.code === "ETIMEDOUT" ||
+    message.includes("timeout of")
+  );
+};
+
+/** 服务端明确拒绝了 RPC（拿到了非 success 的 JSON 响应） */
+const isRpcRejected = (error: any) => {
+  const message = typeof error?.message === "string" ? error.message : "";
+  return message.startsWith("RPC request failed");
 };
 
 const openCategoryDialog = async (torrent: Torrent, batchIds?: number[]) => {
@@ -4158,8 +4332,9 @@ const {
   formatLastActivity,
   formatETA,
   unknownErrorText: () => t('torrent.unknownError'),
-});
-onMounted(() => {
+  getMovingIds: () => torrentMoves.movingTorrentIds,
+  movingLabel: () => t('torrent.moving'),
+});onMounted(() => {
   // 首先从 URL 恢复过滤状态
   syncFiltersFromUrl();
 
@@ -4186,6 +4361,7 @@ onBeforeUnmount(() => {
   stopTrackerPolling();
   releaseTorrentSource();
   stopAutoRefresh();
+  stopLocationTimer();
   if (scrollStopTimer) {
     window.clearTimeout(scrollStopTimer);
     scrollStopTimer = null;

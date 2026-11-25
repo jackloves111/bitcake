@@ -9,7 +9,7 @@ import type { Torrent, TorrentFile, TorrentFileStat, TorrentPeer, TorrentStatus 
 import { TorrentStatusEnum } from '@/types/torrent'
 import { transmissionClient } from './client'
 import { qbittorrentClient } from './qbittorrentClient'
-import { isTransmission, torrentApiBase } from '@/config/torrentClient'
+import { isTransmission, torrentApiBase, apiMoveRequestTimeoutMs } from '@/config/torrentClient'
 import { normalizePath } from '@/utils/path'
 
 interface GetTorrentsOptions {
@@ -213,11 +213,16 @@ const transmissionService: TorrentService = {
   },
 
   setTorrentLocation(ids, location, move = false) {
-    return transmissionClient.request('torrent-set-location', {
-      ids,
-      location: normalizePath(location),
-      move,
-    })
+    return transmissionClient.request(
+      'torrent-set-location',
+      {
+        ids,
+        location: normalizePath(location),
+        move,
+      },
+      // 带 move 时服务端要搬完文件才返回，界面以等待 + 动效呈现，不能中途超时
+      { timeoutMs: move ? apiMoveRequestTimeoutMs : undefined }
+    )
   },
 
   setTorrents(ids, params) {
