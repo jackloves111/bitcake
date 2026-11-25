@@ -64,6 +64,10 @@ interface TorrentTableOptions {
   formatLastActivity: (timestamp?: number) => string;
   formatETA?: (eta?: number, status?: TorrentStatus) => string;
   unknownErrorText: () => string;
+  /** 返回正在后台移动保存目录的种子 id 集合 */
+  getMovingIds?: () => ReadonlySet<number>;
+  /** “移动中”标签文案 */
+  movingLabel?: () => string;
 }
 
 /** Adapts the torrent domain model to Element Plus' virtual-table contract. */
@@ -199,8 +203,24 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
 
   const renderCell = (column: TorrentColumnConfig, row: Torrent) => {
     switch (column.key) {
-      case "name":
-        return h("span", { class: "torrent-cell-ellipsis", title: row.name }, row.name);
+      case "name": {
+        if (!options.getMovingIds?.().has(row.id)) {
+          return h("span", { class: "torrent-cell-ellipsis", title: row.name }, row.name);
+        }
+        // 后台移动保存目录：名称后面挂一个标记，避免误以为界面卡住
+        return h(
+          "span",
+          { class: "torrent-cell-ellipsis torrent-cell-moving", title: row.name },
+          [
+            h("span", { class: "torrent-cell-moving__name" }, row.name),
+            h(
+              ElTag,
+              { size: "small", type: "warning", effect: "light", class: "torrent-moving-tag" },
+              () => options.movingLabel?.() ?? ""
+            ),
+          ]
+        );
+      }
       case "status": {
         const tag = h(ElTag, { type: options.getStatusType(row) as any }, () =>
           options.getStatusText(row)
@@ -337,6 +357,8 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
     // Make selection an explicit column-model dependency so programmatic
     // clears and range changes are reflected immediately.
     void options.selectedIds.value;
+    // 后台移动状态变化时同样需要重建列模型，否则行内标记不会刷新
+    void options.getMovingIds?.();
     const selectionColumn: Column<Torrent> = {
       key: "selection",
       width: 48,

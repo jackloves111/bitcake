@@ -778,6 +778,33 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 后台移动保存目录时的行内标记 */
+.table-scroll :deep(.torrent-cell-moving) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.table-scroll :deep(.torrent-cell-moving__name) {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-scroll :deep(.torrent-moving-tag) {
+  flex: 0 0 auto;
+}
+/* 修改保存目录：等待后端搬移完成时的提示与按钮 */
+.location-submit-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bc-text-subtle);
+}
+.location-submit-button {
+  min-width: 120px;
+}
 .table-scroll :deep(.torrent-labels) {
   display: flex;
   flex-wrap: wrap;

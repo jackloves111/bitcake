@@ -7,6 +7,11 @@ interface RetryableRequestConfig extends AxiosRequestConfig {
   transmission409Retried?: boolean
 }
 
+export interface TransmissionRequestOptions {
+  /** 覆盖单个请求的超时时间（毫秒），`0` 表示一直等待 */
+  timeoutMs?: number
+}
+
 class TransmissionClient {
   private client: AxiosInstance
   private sessionId: string = ''
@@ -72,13 +77,21 @@ class TransmissionClient {
   /**
    * 发送 RPC 请求
    */
-  async request<T = unknown>(method: string, args?: Record<string, unknown>): Promise<T> {
+  async request<T = unknown>(
+    method: string,
+    args?: Record<string, unknown>,
+    options?: TransmissionRequestOptions
+  ): Promise<T> {
     const request: RpcRequest = {
       method,
       arguments: args,
     }
 
-    const { data } = await this.client.post<RpcResponse<T>>('', request)
+    const { data } = await this.client.post<RpcResponse<T>>(
+      '',
+      request,
+      options?.timeoutMs === undefined ? undefined : { timeout: options.timeoutMs }
+    )
 
     if (data.result !== 'success') {
       throw new Error(`RPC request failed: ${data.result}`)

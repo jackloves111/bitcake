@@ -18,6 +18,15 @@
       <el-tag size="small" :type="tagType" effect="light" class="torrent-card__status">
         {{ statusText }}
       </el-tag>
+      <el-tag
+        v-if="moving"
+        size="small"
+        type="warning"
+        effect="light"
+        class="torrent-card__moving"
+      >
+        {{ movingText || "…" }}
+      </el-tag>
     </header>
 
     <div class="torrent-card__progress">
@@ -81,6 +90,10 @@ const props = defineProps<{
   ratioText: string;
   errorText?: string;
   isPaused?: boolean;
+  /** 正在后台移动保存目录 */
+  moving?: boolean;
+  /** “移动中”标签文案 */
+  movingText?: string;
   labels: CardLabels;
 }>();
 
@@ -161,6 +174,11 @@ const onContextMenu = (event: MouseEvent) => {
 
 .torrent-card__status {
   flex: 0 0 auto;
+}
+
+.torrent-card__moving {
+  flex: 0 0 auto;
+  margin-left: -4px;
 }
 
 .torrent-card__progress {
