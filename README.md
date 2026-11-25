@@ -311,6 +311,23 @@ pnpm build:qbittorrent
 pnpm build:both
 ```
 
+### 发布流程
+
+发布由 `.github/workflows/snapshot.yml` 完成，两种触发方式：
+
+```bash
+# 方式一：推标签（标签名去掉前缀 v 必须等于 package.json 的 version）
+git tag v1.1.3
+git push origin v1.1.3
+```
+
+方式二：在 GitHub 仓库的 **Actions → Tag Release → Run workflow** 手动触发，可选择：
+
+- `tag`：发布标签，留空则自动使用 `v` + `package.json` 版本（手动运行时若标签不存在会自动创建并推送）
+- `push_docker`：是否构建并推送 `ghcr.io/<owner>/bitcake` 多架构镜像（取消勾选则只产出 Release 压缩包）
+
+两种方式都会校验标签版本与 `package.json` 一致，然后构建两种皮肤、创建 GitHub Release（附 `bitcake-<version>-transmission.zip` 与 `-qbittorrent.zip`），并按需推送 `:<version>` 与 `:latest` 镜像。
+
 ## 预览
 
 ![首页](preview/index.png)
