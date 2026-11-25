@@ -1,10 +1,14 @@
 name: Snapshot Release
-permissions:
-  contents: write  # 必需权限
-  packages: write  # Docker 镜像推送权限
+
+# 手动触发：版本号自动取自 package.json → 构建两种皮肤 → 打标签 v<version> → 发布 Release（附两个 zip）
+# 构建流程复用历史版本（commit c46dc80），发布步骤改用 gh CLI + 重试：
+# softprops/action-gh-release 在当前仓库会返回 403（Resource not accessible by integration）与偶发 500。
 
 on:
   workflow_dispatch:    # 手动触发：版本号取自 package.json
+
+permissions:
+  contents: write  # 必需权限
 
 jobs:
   build-and-release:
@@ -13,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整提交历史（[[0]](#__0) [[10]](#__10)）
+          fetch-depth: 0  # 获取完整提交历史
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -60,68 +64,66 @@ jobs:
           echo "TRANSMISSION_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-transmission.zip" >> $GITHUB_ENV
           echo "QBITTORRENT_ZIP=$(pwd)/bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip" >> $GITHUB_ENV
 
-      - name: Determine Release Version
-        id: version-clean
-        run: |
-          # 始终使用 package.json 中的版本号
-          VERSION=${{ steps.package-version.outputs.version }}
-          echo "clean_version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+      - name: Upload packaged builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitcake-${{ steps.package-version.outputs.version }}
+          path: bitcake-*.zip
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Create Snapshot Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version-clean.outputs.tag_name }}
-          name: ${{ steps.version-clean.outputs.clean_version }}
-          body: |
-            Automated snapshot build from commit ${{ github.sha }}
-
-            ## 📦 Build Artifacts
-            - `bitcake-${{ steps.package-version.outputs.version }}-transmission.zip` - Transmission 客户端版本
-            - `bitcake-${{ steps.package-version.outputs.version }}-qbittorrent.zip` - qBittorrent 客户端版本
-
-            ## 🐳 Docker Image
-            ```bash
-            docker pull ghcr.io/${{ github.repository_owner }}/bitcake:${{ steps.version-clean.outputs.clean_version }}
-            docker pull ghcr.io/${{ github.repository_owner }}/bitcake:latest
-            ```
-          prerelease: false
-          files: |
-            ${{ env.TRANSMISSION_ZIP }}
-            ${{ env.QBITTORRENT_ZIP }}
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package-version.outputs.version }}
+          TAG: v${{ steps.package-version.outputs.version }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
 
-      # Docker 镜像构建和推送
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          retry() {
+            for attempt in 1 2 3 4 5; do
+              if "$@"; then
+                return 0
+              fi
+              echo "::warning::第 ${attempt} 次尝试失败，5 秒后重试: $*"
+              sleep 5
+            done
+            echo "::error::重试 5 次后仍然失败: $*"
+            return 1
+          }
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+          {
+            echo "手动打包发布：\`${VERSION}\`（版本号自动取自 package.json）。"
+            echo
+            echo "- commit: \`${SHA}\`"
+            echo "- 触发人: @${ACTOR}"
+            echo
+            echo "## 📦 产物"
+            echo "- \`bitcake-${VERSION}-transmission.zip\`"
+            echo "- \`bitcake-${VERSION}-qbittorrent.zip\`"
+          } > release-notes.md
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            retry git tag -a "${TAG}" -m "Release ${VERSION}"
+            retry git push origin "refs/tags/${TAG}"
+            echo "已创建并推送标签 ${TAG}"
+          else
+            echo "标签 ${TAG} 已存在，复用"
+          fi
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/bitcake
-          tags: |
-            type=raw,value=${{ steps.version-clean.outputs.clean_version }}
-            type=raw,value=latest
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            retry gh release edit "${TAG}" --title "${VERSION}" --notes-file release-notes.md
+          else
+            retry gh release create "${TAG}" --title "${VERSION}" --notes-file release-notes.md --target "${SHA}"
+          fi
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          for file in bitcake-*.zip; do
+            retry gh release upload "${TAG}" "${file}" --clobber
+          done
+
+          echo "Release ${TAG} 已发布"
