@@ -317,24 +317,7 @@ pnpm build:both
 
 > fork 仓库默认关闭 Actions，第一次使用需进入 **Actions** 页点击 `I understand my workflows, go ahead and enable them`。来自 fork 的 PR 首次运行可能还需要维护者点 `Approve and run workflows`。
 
-### 发布流程
-
-发布由 `.github/workflows/snapshot.yml` 完成，两种触发方式：
-
-```bash
-# 方式一：推标签（标签名去掉前缀 v 必须等于 package.json 的 version）
-git tag v1.1.3
-git push origin v1.1.3
-```
-
-方式二：在 GitHub 仓库的 **Actions → Tag Release → Run workflow** 手动触发，可选择：
-
-- `tag`：发布标签，留空则自动使用 `v` + `package.json` 版本（手动运行时若标签不存在会自动创建并推送）
-- `push_docker`：是否构建并推送 `ghcr.io/<owner>/bitcake` 多架构镜像（取消勾选则只产出 Release 压缩包）
-
-两种方式都会校验标签版本与 `package.json` 一致，然后构建两种皮肤、创建 GitHub Release（附 `bitcake-<version>-transmission.zip` 与 `-qbittorrent.zip`），并按需推送 `:<version>` 与 `:latest` 镜像。
-
-> 注意：**向他人仓库提交 PR 不会触发发布**。PR 里的 `GITHUB_TOKEN` 只有只读权限、也不注入 secrets，无法创建 Release 或推送镜像；正式发布需要在拥有写权限的仓库里推标签，或由维护者手动触发。
+> 发布（Release）仍由拥有写权限的仓库推送 tag 触发（`.github/workflows/snapshot.yml`）；PR 不会触发发布，因为 PR 里的 `GITHUB_TOKEN` 只有只读权限，也不注入 secrets。
 
 ## 预览
 
