@@ -9,6 +9,8 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 // BitCake 2.0 设计系统（必须在 Element Plus 之后加载，用于覆盖语义变量）
 import './style.css'
+// 毛玻璃主题（glass）：全部规则限定在 [data-bc-theme="glass"]，需在 style.css 之后以赢得同优先级层叠
+import './styles/glass.css'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import en from 'element-plus/es/locale/lang/en'
 

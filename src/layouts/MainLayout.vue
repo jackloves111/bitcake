@@ -47,6 +47,23 @@
                     {{ currentMode === 'dark' ? t('theme.light') : t('theme.dark') }}
                   </span>
                 </el-dropdown-item>
+                <!-- 毛玻璃：手动关闭透明效果（写入 data-bc-glass="solid"） -->
+                <el-dropdown-item
+                  v-if="currentTheme === 'glass'"
+                  divided
+                  command="__toggle_transparency__"
+                >
+                  <span class="accent-option">
+                    <span
+                      class="transparency-switch"
+                      :class="{ 'is-on': reduceTransparency }"
+                      aria-hidden="true"
+                    >
+                      <span class="transparency-switch__dot" />
+                    </span>
+                    {{ t('theme.reduceTransparency') }}
+                  </span>
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -117,7 +134,11 @@
             <span class="nav-item__label">{{ item.label }}</span>
           </button>
         </nav>
-        <SidebarStatus :metrics="statusMetrics" />
+        <SidebarStatus
+          :metrics="statusMetrics"
+          :version="frontendVersionLabel"
+          :version-title="frontendVersionTitle"
+        />
       </aside>
 
       <main class="app-main">
@@ -156,9 +177,14 @@
         <div class="drawer-header">
           <div>
             <h3>{{ backendLabel }}</h3>
-            <span class="drawer-version">{{ versionText || ('v' + frontendVersion) }}</span>
+            <span class="drawer-version">{{ versionText || frontendVersionLabel }}</span>
           </div>
-          <button class="icon-button" type="button" @click="isMenuOpen = false">
+          <button
+            class="icon-button"
+            type="button"
+            :aria-label="t('header.collapseMenu')"
+            @click="isMenuOpen = false"
+          >
             <el-icon :size="18"><Close /></el-icon>
           </button>
         </div>
@@ -190,7 +216,11 @@
             <span class="nav-item__label">{{ item.label }}</span>
           </button>
 
-          <SidebarStatus :metrics="statusMetrics" />
+          <SidebarStatus
+            :metrics="statusMetrics"
+            :version="frontendVersionLabel"
+            :version-title="frontendVersionTitle"
+          />
         </div>
       </div>
     </el-drawer>
@@ -201,6 +231,7 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
+import dayjs from "dayjs";
 import { useI18n } from "vue-i18n";
 import {
   Setting,
@@ -216,13 +247,14 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useSystemStatusStore } from "@/stores/systemStatus";
+import { usePreferencesStore } from "@/stores/preferences";
 import { useConnectionStore } from "@/stores/connection";
 import { useFilterStore, type StatusFilter, statusToUrl } from "@/stores/filter";
 import { useThemeStore, type ThemeType } from "@/stores/theme";
 import { useLocaleStore } from "@/stores/locale";
 import { useMediaQuery } from "@/utils/useMediaQuery";
 import { formatBytes } from "@/utils/format";
-import SidebarStatus from "./components/SidebarStatus.vue";
+import SidebarStatus, { type StatusMetric } from "./components/SidebarStatus.vue";
 import { torrentBackendName, isTransmission } from "@/config/torrentClient";
 import { TorrentStatusEnum } from "@/types/transmission";
 import { buildTorrentStatusTextMap } from "@/utils/torrentStatus";
@@ -234,14 +266,17 @@ const localeStore = useLocaleStore();
 const router = useRouter();
 const route = useRoute();
 const systemStatusStore = useSystemStatusStore();
+const preferencesStore = usePreferencesStore();
 const connectionStore = useConnectionStore();
 const filterStore = useFilterStore();
 const themeStore = useThemeStore();
 const { torrentCounts } = storeToRefs(systemStatusStore);
-const { currentTheme, currentMode } = storeToRefs(themeStore);
+const { currentTheme, currentMode, reduceTransparency } = storeToRefs(themeStore);
 const backendLabel = torrentBackendName;
 const { sessionStats, freeSpaceBytes, sessionConfig, lastUpdated } =
   storeToRefs(systemStatusStore);
+// 刷新间隔单位为毫秒，0 表示仅手动
+const { refreshInterval } = storeToRefs(preferencesStore);
 const { statusFilter } = storeToRefs(filterStore);
 const isMobile = useMediaQuery("(max-width: 768px)");
 const isMenuOpen = ref(false);
@@ -302,6 +337,8 @@ const accentOptions = computed(() => [
   { value: "green", label: t('theme.green'), color: "#2f9e63" },
   { value: "blue", label: t('theme.blue'), color: "#2f6fed" },
   { value: "pink", label: t('theme.pink'), color: "#e0518a" },
+  // 毛玻璃色点用「实色 + 半透明」渐变示意，与简约蓝的实色点区分
+  { value: "glass", label: t('theme.glass'), color: "linear-gradient(135deg, #0a84ff 0%, rgba(10, 132, 255, 0.3) 100%)" },
 ]);
 
 // 移动端底部导航：种子入口默认打开抽屉（含状态筛选）
@@ -366,29 +403,83 @@ const formatLimitText = (kbps: number | null): string | null => {
   const bps = kbps * 1024;
   return `${formatBytesCompact(bps)}/s`;
 };
-const uploadSpeedText = computed(() => {
-  const bps = sessionStats.value?.uploadSpeed || 0;
-  const limitText = formatLimitText(uploadLimitKBps.value);
-  return limitText ? `${formatSpeedCompact(bps)} [${t('sidebar.limit')}${limitText}]` : `${formatSpeedCompact(bps)}`;
+// 侧栏「系统状态」：now 每 15 秒刷新一次，用于判断更新时间是否停摆（stale）与是否跨天。
+// lastUpdated 只在刷新成功后写入，轮询停摆时若只看它本身会显示一个冻结的时间。
+const now = ref(Date.now());
+const NOW_TICK_MS = 15_000;
+let nowTimer: ReturnType<typeof setInterval> | undefined;
+// 停摆阈值：刷新间隔 × 4，下限 20 秒
+const staleThresholdMs = computed(() => Math.max(refreshInterval.value * 4, 20_000));
+const lastUpdatedMs = computed(() => {
+  if (!lastUpdated.value) return null;
+  const ms = dayjs(lastUpdated.value).valueOf();
+  return Number.isNaN(ms) ? null : ms;
 });
-const downloadSpeedText = computed(() => {
-  const bps = sessionStats.value?.downloadSpeed || 0;
-  const limitText = formatLimitText(downloadLimitKBps.value);
-  return limitText ? `${formatSpeedCompact(bps)} [${t('sidebar.limit')}${limitText}]` : `${formatSpeedCompact(bps)}`;
-});
+const isStale = computed(
+  () => lastUpdatedMs.value !== null && now.value - lastUpdatedMs.value > staleThresholdMs.value
+);
+
+const speedMetric = (
+  key: "download" | "upload",
+  bytesPerSecond: number,
+  limitKBps: number | null
+): StatusMetric => {
+  const label = key === "download" ? t("sidebar.download") : t("sidebar.upload");
+  const speed = formatSpeedCompact(bytesPerSecond);
+  const limit = formatLimitText(limitKBps);
+  return {
+    key,
+    label,
+    value: speed,
+    cap: limit ?? undefined,
+    title: limit
+      ? t("sidebar.speedWithTitle", { label, speed, limit })
+      : t("sidebar.speedValue", { label, speed }),
+  };
+};
+
 const freeSpaceText = computed(() =>
   freeSpaceBytes.value !== null ? formatBytes(freeSpaceBytes.value) : t('common.unknown')
 );
 const versionText = computed(() => sessionConfig.value?.version || "");
-const lastUpdatedText = computed(() => lastUpdated.value || "—");
+
+const statusMetrics = computed<StatusMetric[]>(() => {
+  const lastMs = lastUpdatedMs.value;
+  const lastFull = lastMs === null ? "—" : dayjs(lastMs).format("YYYY-MM-DD HH:mm:ss");
+  const lastIsStale = isStale.value;
+  // 同日且未停摆 → HH:mm:ss；否则带日期的 MM-DD HH:mm（横线格式本身即「非实时」线索）
+  const lastSameDay =
+    !lastIsStale && lastMs !== null && dayjs(lastMs).isSame(dayjs(now.value), "day");
+  return [
+    speedMetric("download", sessionStats.value?.downloadSpeed || 0, downloadLimitKBps.value),
+    speedMetric("upload", sessionStats.value?.uploadSpeed || 0, uploadLimitKBps.value),
+    {
+      key: "freeSpace",
+      label: t("sidebar.freeSpace"),
+      value: freeSpaceText.value,
+      title: `${t("stats.diskFreeSpace")} ${freeSpaceText.value}`,
+    },
+    {
+      key: "lastUpdate",
+      label: t("sidebar.lastUpdate"),
+      value:
+        lastMs === null
+          ? "—"
+          : dayjs(lastMs).format(lastSameDay ? "HH:mm:ss" : "MM-DD HH:mm"),
+      // 无数据时保留「更新」标签 +「—」；仅在有过更新且停摆/跨天（日期串自解释）时隐藏标签
+      hideLabel: lastMs !== null && !lastSameDay,
+      title: lastIsStale
+        ? t("sidebar.updatedAtStale", { time: lastFull })
+        : t("sidebar.updatedAt", { time: lastFull }),
+    },
+  ];
+});
 const frontendVersion = __APP_VERSION__ || "dev";
-const statusMetrics = computed(() => [
-  { label: t('sidebar.upload'), value: uploadSpeedText.value },
-  { label: t('sidebar.download'), value: downloadSpeedText.value },
-  { label: t('sidebar.freeSpace'), value: freeSpaceText.value },
-  { label: t('sidebar.lastUpdate'), value: lastUpdatedText.value },
-  { label: t('sidebar.version'), value: `v${frontendVersion}` },
-]);
+// 构建未注入版本号时显示 dev，不拼成 vdev
+const frontendVersionLabel = frontendVersion === "dev" ? "dev" : `v${frontendVersion}`;
+const frontendVersionTitle = computed(() =>
+  t("sidebar.versionFull", { version: frontendVersion })
+);
 
 // 根据当前路由和过滤器状态计算当前活动的菜单项
 const updateActiveMenuItem = () => {
@@ -437,15 +528,26 @@ onMounted(() => {
   systemStatusStore.start();
   updateActiveMenuItem();
   themeStore.loadTheme();
+  nowTimer = setInterval(() => {
+    now.value = Date.now();
+  }, NOW_TICK_MS);
 });
 
 onBeforeUnmount(() => {
   systemStatusStore.stop();
+  if (nowTimer) {
+    clearInterval(nowTimer);
+    nowTimer = undefined;
+  }
 });
 
 const handleThemeChange = (theme: string) => {
   if (theme === "__toggle_mode__") {
     themeStore.toggleMode();
+    return;
+  }
+  if (theme === "__toggle_transparency__") {
+    themeStore.setReduceTransparency(!themeStore.reduceTransparency);
     return;
   }
   themeStore.setTheme(theme as ThemeType);
@@ -580,6 +682,34 @@ const handleLogout = async () => {
   display: inline-block;
 }
 
+/* 主题下拉里的「减弱透明效果」小开关（仅视觉示意，真实状态由 data-bc-glass 驱动） */
+.transparency-switch {
+  width: 28px;
+  height: 16px;
+  padding: 2px;
+  border-radius: var(--bc-radius-pill);
+  background: var(--bc-border-strong);
+  display: inline-flex;
+  align-items: center;
+  transition: background var(--bc-duration) var(--bc-ease);
+}
+
+.transparency-switch__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--bc-duration) var(--bc-ease);
+}
+
+.transparency-switch.is-on {
+  background: var(--bc-text-muted);
+}
+
+.transparency-switch.is-on .transparency-switch__dot {
+  transform: translateX(12px);
+}
+
 /* ---------------- 主体 ---------------- */
 .app-body {
   flex: 1 1 auto;
@@ -611,7 +741,7 @@ const handleLogout = async () => {
   margin: 14px 8px 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--bc-text-subtle);
+  color: var(--bc-text-subtle-bar, var(--bc-text-muted));
 }
 
 .sidebar-nav__title:first-child {
@@ -766,7 +896,7 @@ const handleLogout = async () => {
 
 .drawer-version {
   font-size: 12px;
-  color: var(--bc-text-subtle);
+  color: var(--bc-text-subtle-bar, var(--bc-text-muted));
 }
 
 .drawer-header .icon-button {

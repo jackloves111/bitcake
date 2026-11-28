@@ -1,0 +1,1316 @@
+/* ==========================================================================
+   BitCake · 毛玻璃主题（glass）
+   - 全部规则限定在 :root[data-bc-theme="glass"] 作用域内，不改动 green / blue / pink 的任何取值
+   - 降级三级由 <html data-bc-glass="full|lite|solid"> 驱动，并附 CSS 兜底（§8.4）
+   - backdrop-filter 只给「内容会从其下方经过」的 A 类表面：
+     顶栏、tabbar、表格表头、teleport 到 body 的浮层、全屏 ElLoading 遮罩
+   - 禁止对 backdrop-filter 做 transition / animation
+   ========================================================================== */
+
+/* ElLoading 全屏遮罩色（非 glass 主题的值与 HomeView 原硬编码一致；glass 在下方覆盖） */
+:root {
+  --bc-loading-mask: rgba(0, 0, 0, 0.7);
+}
+
+/* ==========================================================================
+   1. 变量 · 浅色
+   ========================================================================== */
+:root[data-bc-theme="glass"] {
+  color-scheme: light;
+
+  /* ---- 背景 / 材质 ---- */
+  --bc-glass-bg-base: #f4f6fb;
+  --bc-glass-blob-a: rgba(10, 132, 255, 0.16);
+  --bc-glass-blob-b: rgba(94, 92, 230, 0.12);
+  --bc-glass-blob-c: rgba(48, 176, 199, 0.12);
+
+  --bc-glass-bar: rgba(255, 255, 255, 0.6);
+  --bc-glass-card: rgba(255, 255, 255, 0.7);
+  --bc-glass-float: rgba(255, 255, 255, 0.82);
+  --bc-glass-modal: rgba(255, 255, 255, 0.88);
+  --bc-glass-mask: rgba(28, 28, 30, 0.28);
+
+  --bc-glass-blur-bar: 24px;
+  --bc-glass-blur-card: 20px;
+  --bc-glass-blur-float: 28px;
+  --bc-glass-blur-modal: 40px;
+  --bc-glass-blur-tabbar: 30px;
+  --bc-glass-blur-loading: 8px;
+  --bc-glass-saturate: 180%;
+  --bc-glass-filter-bar: blur(var(--bc-glass-blur-bar)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-card: blur(var(--bc-glass-blur-card)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-float: blur(var(--bc-glass-blur-float)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-modal: blur(var(--bc-glass-blur-modal)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-tabbar: blur(var(--bc-glass-blur-tabbar)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-loading: blur(var(--bc-glass-blur-loading));
+
+  --bc-glass-highlight: rgba(255, 255, 255, 0.75);
+  --bc-glass-highlight-strong: rgba(255, 255, 255, 0.9);
+  --bc-glass-highlight-weak: rgba(255, 255, 255, 0.55);
+
+  --bc-glass-row-divider: rgba(60, 60, 67, 0.08);
+  --bc-glass-zebra: rgba(120, 140, 180, 0.05);
+  --bc-glass-well: rgba(120, 140, 180, 0.08);
+
+  /* 预合成实色：材质 α 盖在 Aurora 基底上的结果，用于固定列 / 不能 blur 的子级 */
+  --bc-glass-card-solid: #f5f7fc;
+  --bc-glass-bar-solid: #fbfcfe;
+  --bc-glass-float-solid-surface: #f8fafd;
+  /* tooltip / ECharts tooltip 实色深底 */
+  --bc-glass-float-solid: #1d1d1f;
+
+  /* 控件 */
+  --bc-glass-control-bg: rgba(255, 255, 255, 0.55);
+  --bc-glass-control-bg-hover: rgba(255, 255, 255, 0.8);
+  --bc-glass-badge-bg: rgba(120, 140, 180, 0.1);
+  --bc-glass-nav-active-highlight: rgba(255, 255, 255, 0.35);
+  --bc-glass-progress-track: rgba(120, 140, 180, 0.18);
+
+  /* ---- 圆角 ---- */
+  --bc-glass-radius-xs: 6px;
+  --bc-glass-radius-control: 10px;
+  --bc-glass-radius-xl: 22px;
+
+  /* ---- 阴影（双层：接触 + 环境）---- */
+  --bc-glass-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 1px rgba(16, 24, 40, 0.03);
+  --bc-glass-shadow-md: 0 4px 14px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --bc-glass-shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.14), 0 4px 12px rgba(16, 24, 40, 0.06);
+  --bc-glass-shadow-xl: 0 30px 80px rgba(16, 24, 40, 0.22), 0 8px 24px rgba(16, 24, 40, 0.08);
+  --bc-glass-shadow-accent: 0 1px 2px rgba(10, 132, 255, 0.35);
+  --bc-glass-shadow-tabbar: 0 -4px 16px rgba(16, 24, 40, 0.06);
+  --bc-glass-fixed-shadow: 4px 0 8px rgba(16, 24, 40, 0.06);
+
+  /* ---- 动效 ---- */
+  --bc-glass-dur-fast: 120ms;
+  --bc-glass-dur-base: 200ms;
+  --bc-glass-dur-slow: 320ms;
+  --bc-glass-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --bc-glass-ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+
+  /* ---- 数据方向色 / 图表 ---- */
+  --bc-glass-down: #007aff;
+  --bc-glass-up: #ff9500;
+  --bc-glass-up-text: #b25000;
+  --bc-glass-indigo: #5856d6;
+  --bc-glass-chart-grid: rgba(60, 60, 67, 0.06);
+
+  /* ---- 既有 --bc-* 重映射（仅 glass 内生效）---- */
+  --bc-bg: transparent;
+  --bc-bg-elevated: var(--bc-glass-card);
+  --bc-surface: var(--bc-glass-card);
+  --bc-surface-muted: var(--bc-glass-well);
+  --bc-surface-hover: rgba(0, 122, 255, 0.06);
+  --bc-border: rgba(60, 60, 67, 0.12);
+  --bc-border-strong: rgba(60, 60, 67, 0.22);
+  --bc-text: #1d1d1f;
+  --bc-text-muted: #515154;
+  --bc-text-subtle: #6e6e73;
+  /* 仅 L1 Bar 上使用的第三级文字（subtle 在 L1 上零余量） */
+  --bc-text-subtle-bar: #5e5e63;
+  --bc-header-bg: var(--bc-glass-bar);
+  --bc-header-text: var(--bc-text);
+  --bc-header-text-muted: var(--bc-text-subtle-bar);
+  --bc-skeleton: linear-gradient(
+    90deg,
+    rgba(120, 140, 180, 0.08) 25%,
+    rgba(120, 140, 180, 0.16) 37%,
+    rgba(120, 140, 180, 0.08) 63%
+  );
+  --bc-scrollbar: rgba(60, 60, 67, 0.22);
+
+  /* 强调色：Apple Blue */
+  --bc-accent: #007aff;
+  --bc-accent-strong: #0066cc;
+  --bc-accent-soft: rgba(0, 122, 255, 0.1);
+  --bc-accent-ring: rgba(0, 122, 255, 0.28);
+  --bc-accent-contrast: #ffffff;
+  /* 承载白字的实色强调底（徽标 / 分页激活 / 主按钮） */
+  --bc-glass-accent-fill: #0066cc;
+  --bc-glass-btn-primary-image: linear-gradient(180deg, #0071e8 0%, #0066cc 100%);
+  --bc-glass-btn-primary-image-hover: linear-gradient(180deg, #1a7ce8 0%, #0f6bd0 100%);
+  --bc-glass-btn-primary-hover: #0071e8;
+  --bc-glass-btn-primary-active: #0062bf;
+  /* danger solid：浅色纯色深底，不做亮色渐变 */
+  --bc-glass-btn-danger-bg: #d70015;
+  --bc-glass-btn-danger-hover: #c00012;
+  --bc-glass-btn-danger-active: #b00012;
+
+  /* 语义色（文字级）+ 补齐 soft / ring */
+  --bc-success: #248a3d;
+  --bc-success-soft: rgba(52, 199, 89, 0.14);
+  --bc-success-ring: rgba(52, 199, 89, 0.3);
+  --bc-warning: #b25000;
+  --bc-warning-soft: rgba(255, 149, 0, 0.14);
+  --bc-warning-ring: rgba(255, 149, 0, 0.3);
+  --bc-danger: #d70015;
+  --bc-danger-soft: rgba(255, 59, 48, 0.12);
+  --bc-danger-ring: rgba(255, 59, 48, 0.3);
+  --bc-info: #6e6e73;
+  --bc-info-soft: rgba(142, 142, 147, 0.14);
+  --bc-info-ring: rgba(142, 142, 147, 0.3);
+  /* 图形级（进度条 / 色点）*/
+  --bc-success-graphic: #34c759;
+  --bc-warning-graphic: #ff9500;
+  --bc-danger-graphic: #ff3b30;
+
+  /* 控件描边（D-3）*/
+  --bc-border-control: rgba(60, 60, 67, 0.36);
+  --bc-border-control-hover: rgba(60, 60, 67, 0.46);
+  /* 焦点环内侧缝隙色 */
+  --bc-glass-focus-gap: #ffffff;
+
+  /* 阴影 / 动效 / 滚动条桥接 */
+  --bc-shadow-sm: var(--bc-glass-shadow-sm);
+  --bc-shadow-md: var(--bc-glass-shadow-md);
+  --bc-shadow-lg: var(--bc-glass-shadow-lg);
+  --bc-duration: var(--bc-glass-dur-base);
+
+  /* ElLoading 全屏遮罩色（HomeView 读取）*/
+  --bc-loading-mask: var(--bc-glass-mask);
+
+  /* ---- Element Plus 桥接 ---- */
+  --el-border-radius-base: var(--bc-glass-radius-control);
+  --el-border-radius-small: var(--bc-radius-sm);
+  --el-border-radius-round: var(--bc-radius-pill);
+  --el-bg-color: var(--bc-glass-card-solid);
+  --el-bg-color-overlay: var(--bc-glass-float-solid-surface);
+  --el-fill-color: var(--bc-glass-well);
+  --el-fill-color-light: var(--bc-glass-well);
+  --el-fill-color-lighter: var(--bc-glass-well);
+  --el-fill-color-extra-light: var(--bc-glass-well);
+  --el-fill-color-blank: rgba(255, 255, 255, 0.55);
+  --el-border-color: var(--bc-border-control);
+  --el-border-color-light: var(--bc-border);
+  --el-border-color-lighter: var(--bc-glass-row-divider);
+  --el-border-color-extra-light: var(--bc-glass-row-divider);
+  --el-border-color-hover: var(--bc-border-control-hover);
+  --el-border-color-dark: var(--bc-border-strong);
+  --el-text-color-primary: var(--bc-text);
+  --el-text-color-regular: var(--bc-text-muted);
+  --el-text-color-secondary: var(--bc-text-subtle);
+  --el-text-color-placeholder: var(--bc-text-subtle);
+  --el-text-color-disabled: var(--bc-text-subtle);
+  --el-disabled-text-color: var(--bc-text-subtle);
+  --el-input-border-color: var(--bc-border-control);
+  --el-input-hover-border-color: var(--bc-border-control-hover);
+  --el-input-focus-border-color: var(--bc-accent);
+  --el-checkbox-bg-color: var(--bc-glass-focus-gap);
+  --el-radio-bg-color: var(--bc-glass-focus-gap);
+  --el-mask-color: var(--bc-glass-mask);
+  --el-overlay-color-lighter: var(--bc-glass-mask);
+  --el-box-shadow-light: var(--bc-glass-shadow-md);
+  --el-dropdown-menu-box-shadow: var(--bc-glass-shadow-lg);
+  --el-dropdown-menuItem-hover-fill: var(--bc-surface-hover);
+  --el-dropdown-menuItem-hover-color: var(--bc-text);
+  --el-pagination-hover-color: var(--bc-accent-strong);
+  --el-table-border-color: var(--bc-glass-row-divider);
+}
+
+/* ==========================================================================
+   2. 变量 · 深色
+   ========================================================================== */
+:root[data-bc-theme="glass"][data-bc-mode="dark"] {
+  color-scheme: dark;
+
+  --bc-glass-bg-base: #0d0f14;
+  --bc-glass-blob-a: rgba(10, 132, 255, 0.18);
+  --bc-glass-blob-b: rgba(94, 92, 230, 0.16);
+  --bc-glass-blob-c: rgba(48, 208, 160, 0.1);
+
+  --bc-glass-bar: rgba(20, 22, 28, 0.58);
+  --bc-glass-card: rgba(24, 26, 32, 0.7);
+  --bc-glass-float: rgba(32, 33, 40, 0.84);
+  --bc-glass-modal: rgba(30, 31, 38, 0.9);
+  --bc-glass-mask: rgba(0, 0, 0, 0.52);
+
+  --bc-glass-saturate: 150%;
+  --bc-glass-filter-bar: blur(var(--bc-glass-blur-bar)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-card: blur(var(--bc-glass-blur-card)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-float: blur(var(--bc-glass-blur-float)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-modal: blur(var(--bc-glass-blur-modal)) saturate(var(--bc-glass-saturate));
+  --bc-glass-filter-tabbar: blur(var(--bc-glass-blur-tabbar)) saturate(var(--bc-glass-saturate));
+
+  --bc-glass-highlight: rgba(255, 255, 255, 0.07);
+  --bc-glass-highlight-strong: rgba(255, 255, 255, 0.1);
+  --bc-glass-highlight-weak: rgba(255, 255, 255, 0.06);
+
+  --bc-glass-row-divider: rgba(235, 235, 245, 0.07);
+  --bc-glass-zebra: rgba(255, 255, 255, 0.03);
+  --bc-glass-well: rgba(255, 255, 255, 0.06);
+
+  --bc-glass-card-solid: #1b1c22;
+  --bc-glass-bar-solid: #171820;
+  --bc-glass-float-solid-surface: #23242b;
+  --bc-glass-float-solid: #2c2d33;
+
+  --bc-glass-control-bg: rgba(255, 255, 255, 0.07);
+  --bc-glass-control-bg-hover: rgba(255, 255, 255, 0.14);
+  --bc-glass-badge-bg: rgba(255, 255, 255, 0.1);
+  --bc-glass-nav-active-highlight: rgba(255, 255, 255, 0.06);
+  --bc-glass-progress-track: rgba(255, 255, 255, 0.12);
+
+  --bc-glass-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --bc-glass-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --bc-glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.45);
+  --bc-glass-shadow-xl: 0 36px 90px rgba(0, 0, 0, 0.65), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --bc-glass-shadow-accent: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --bc-glass-shadow-tabbar: 0 -4px 16px rgba(0, 0, 0, 0.5);
+  --bc-glass-fixed-shadow: 4px 0 8px rgba(0, 0, 0, 0.4);
+
+  --bc-glass-down: #0a84ff;
+  --bc-glass-up: #ff9f0a;
+  --bc-glass-up-text: #ffb340;
+  --bc-glass-indigo: #5e5ce6;
+  --bc-glass-chart-grid: rgba(235, 235, 245, 0.06);
+
+  --bc-surface-hover: rgba(10, 132, 255, 0.08);
+  --bc-border: rgba(235, 235, 245, 0.1);
+  --bc-border-strong: rgba(235, 235, 245, 0.18);
+  --bc-text: #f5f5f7;
+  --bc-text-muted: #a1a1a6;
+  --bc-text-subtle: #8e8e93;
+  --bc-text-subtle-bar: #98989d;
+  --bc-scrollbar: rgba(235, 235, 245, 0.2);
+
+  --bc-accent: #0a84ff;
+  --bc-accent-strong: #2997ff;
+  --bc-accent-soft: rgba(10, 132, 255, 0.16);
+  --bc-accent-ring: rgba(10, 132, 255, 0.4);
+  /* 深色实色强调底保留 #0A84FF（D-2）*/
+  --bc-glass-accent-fill: #0a84ff;
+  --bc-glass-btn-primary-image: none;
+  --bc-glass-btn-primary-image-hover: none;
+  --bc-glass-btn-primary-hover: #2a9bff;
+  --bc-glass-btn-primary-active: #0a74e0;
+  --bc-glass-btn-danger-bg: #e0342b;
+  --bc-glass-btn-danger-hover: #eb433a;
+  --bc-glass-btn-danger-active: #d02c24;
+
+  --bc-success: #30d158;
+  --bc-success-soft: rgba(48, 209, 88, 0.18);
+  --bc-success-ring: rgba(48, 209, 88, 0.4);
+  --bc-warning: #ffb340;
+  --bc-warning-soft: rgba(255, 159, 10, 0.18);
+  --bc-warning-ring: rgba(255, 159, 10, 0.4);
+  --bc-danger: #ff453a;
+  --bc-danger-soft: rgba(255, 69, 58, 0.18);
+  --bc-danger-ring: rgba(255, 69, 58, 0.4);
+  --bc-info: #8e8e93;
+  --bc-info-soft: rgba(152, 152, 157, 0.16);
+  --bc-info-ring: rgba(152, 152, 157, 0.4);
+  --bc-success-graphic: #30d158;
+  --bc-warning-graphic: #ff9f0a;
+  --bc-danger-graphic: #ff453a;
+
+  --bc-border-control: rgba(235, 235, 245, 0.3);
+  --bc-border-control-hover: rgba(235, 235, 245, 0.4);
+  --bc-glass-focus-gap: #12141a;
+
+  --bc-skeleton: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  );
+
+  /* style.css 的深色层对 --el-bg-color* 的映射在此重定向到 glass 的预合成实色 */
+  --el-bg-color: var(--bc-glass-card-solid);
+  --el-bg-color-page: var(--bc-glass-bg-base);
+  --el-bg-color-overlay: var(--bc-glass-float-solid-surface);
+  --el-fill-color-blank: rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   3. 降级：lite（模糊减半、去饱和、阴影单层）
+   ========================================================================== */
+:root[data-bc-theme="glass"][data-bc-glass="lite"] {
+  --bc-glass-blur-bar: 12px;
+  --bc-glass-blur-card: 10px;
+  --bc-glass-blur-float: 14px;
+  --bc-glass-blur-modal: 24px;
+  --bc-glass-blur-tabbar: 16px;
+  --bc-glass-blur-loading: 4px;
+  --bc-glass-saturate: 100%;
+  --bc-glass-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --bc-glass-shadow-md: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --bc-glass-shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.14);
+  --bc-glass-shadow-xl: 0 30px 80px rgba(16, 24, 40, 0.22);
+}
+
+:root[data-bc-theme="glass"][data-bc-glass="lite"][data-bc-mode="dark"] {
+  --bc-glass-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --bc-glass-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --bc-glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --bc-glass-shadow-xl: 0 36px 90px rgba(0, 0, 0, 0.65);
+}
+
+/* lite：关闭对话框整面 transform 过渡（规范 §7.4）。
+   EP 2.11 的 el-dialog 默认过渡名是 dialog-fade，内层 .el-overlay-dialog 用的是 translate3d(0,-20px) 关键帧
+   （不是 scale，但同样是整面合成层位移），这里换成仅 opacity 的关键帧，时长不变。 */
+@keyframes bc-glass-dialog-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bc-glass-dialog-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+:root[data-bc-theme="glass"][data-bc-glass="lite"] .dialog-fade-enter-active .el-overlay-dialog {
+  animation-name: bc-glass-dialog-fade-in;
+}
+
+:root[data-bc-theme="glass"][data-bc-glass="lite"] .dialog-fade-leave-active .el-overlay-dialog {
+  animation-name: bc-glass-dialog-fade-out;
+}
+
+/* ==========================================================================
+   4. 降级：solid（实色回退，Aurora 保留）
+   ========================================================================== */
+:root[data-bc-theme="glass"][data-bc-glass="solid"] {
+  --bc-glass-filter-bar: none;
+  --bc-glass-filter-card: none;
+  --bc-glass-filter-float: none;
+  --bc-glass-filter-modal: none;
+  --bc-glass-filter-tabbar: none;
+  --bc-glass-filter-loading: none;
+}
+
+:root[data-bc-theme="glass"][data-bc-glass="solid"] {
+  --bc-glass-bar: #f7f8fb;
+  --bc-glass-card: #ffffff;
+  --bc-glass-float: #ffffff;
+  --bc-glass-modal: #ffffff;
+  /* 固定列必须与表体实色一致 */
+  --bc-glass-card-solid: #ffffff;
+  --bc-glass-bar-solid: #f7f8fb;
+}
+
+:root[data-bc-theme="glass"][data-bc-glass="solid"][data-bc-mode="dark"] {
+  --bc-glass-bar: #161a21;
+  --bc-glass-card: #1a1d25;
+  --bc-glass-float: #20232b;
+  --bc-glass-modal: #1e2129;
+  --bc-glass-card-solid: #1a1d25;
+  --bc-glass-bar-solid: #161a21;
+}
+
+/* ==========================================================================
+   5. 降级：CSS 兜底（JS 判定失败时仍回退到实色）
+   ========================================================================== */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-bc-theme="glass"] {
+    --bc-glass-bar: #f7f8fb;
+    --bc-glass-card: #ffffff;
+    --bc-glass-float: #ffffff;
+    --bc-glass-modal: #ffffff;
+    --bc-glass-card-solid: #ffffff;
+    --bc-glass-bar-solid: #f7f8fb;
+    --bc-glass-filter-bar: none;
+    --bc-glass-filter-card: none;
+    --bc-glass-filter-float: none;
+    --bc-glass-filter-modal: none;
+    --bc-glass-filter-tabbar: none;
+    --bc-glass-filter-loading: none;
+  }
+  :root[data-bc-theme="glass"][data-bc-mode="dark"] {
+    --bc-glass-bar: #161a21;
+    --bc-glass-card: #1a1d25;
+    --bc-glass-float: #20232b;
+    --bc-glass-modal: #1e2129;
+    --bc-glass-card-solid: #1a1d25;
+    --bc-glass-bar-solid: #161a21;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-bc-theme="glass"] {
+    --bc-glass-bar: #f7f8fb;
+    --bc-glass-card: #ffffff;
+    --bc-glass-float: #ffffff;
+    --bc-glass-modal: #ffffff;
+    --bc-glass-card-solid: #ffffff;
+    --bc-glass-bar-solid: #f7f8fb;
+    --bc-glass-filter-bar: none;
+    --bc-glass-filter-card: none;
+    --bc-glass-filter-float: none;
+    --bc-glass-filter-modal: none;
+    --bc-glass-filter-tabbar: none;
+    --bc-glass-filter-loading: none;
+  }
+  :root[data-bc-theme="glass"][data-bc-mode="dark"] {
+    --bc-glass-bar: #161a21;
+    --bc-glass-card: #1a1d25;
+    --bc-glass-float: #20232b;
+    --bc-glass-modal: #1e2129;
+    --bc-glass-card-solid: #1a1d25;
+    --bc-glass-bar-solid: #161a21;
+  }
+}
+
+/* ==========================================================================
+   6. L0 背景光（Aurora）：body::before，静态、不动画、不可交互
+   ========================================================================== */
+:root[data-bc-theme="glass"] body {
+  background-color: var(--bc-glass-bg-base);
+  /* glass 下移除背景色过渡：Aurora 无法过渡，避免主题切换两段式闪动 */
+  transition: color var(--bc-duration) var(--bc-ease);
+}
+
+:root[data-bc-theme="glass"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% 8%, var(--bc-glass-blob-a) 0%, transparent 70%),
+    radial-gradient(50% 45% at 88% 12%, var(--bc-glass-blob-b) 0%, transparent 70%),
+    radial-gradient(55% 50% at 55% 100%, var(--bc-glass-blob-c) 0%, transparent 70%),
+    linear-gradient(160deg, #f4f6fb 0%, #eef1f7 50%, #f3f2f8 100%);
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] body::before {
+  background:
+    radial-gradient(60% 50% at 12% 8%, var(--bc-glass-blob-a) 0%, transparent 70%),
+    radial-gradient(50% 45% at 88% 12%, var(--bc-glass-blob-b) 0%, transparent 70%),
+    radial-gradient(55% 50% at 55% 100%, var(--bc-glass-blob-c) 0%, transparent 70%),
+    linear-gradient(160deg, #101216 0%, #0d0f14 55%, #121319 100%);
+}
+
+/* ==========================================================================
+   7. A 类材质：内容从其下方经过 → blur
+   ========================================================================== */
+
+/* ---- L1 Bar：顶栏 / tabbar ---- */
+:root[data-bc-theme="glass"] .app-header {
+  -webkit-backdrop-filter: var(--bc-glass-filter-bar);
+  backdrop-filter: var(--bc-glass-filter-bar);
+  /* Bar 永远不投影，只保留顶部 1px 高光 */
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-weak);
+}
+
+:root[data-bc-theme="glass"] .tabbar {
+  background: var(--bc-glass-bar);
+  -webkit-backdrop-filter: var(--bc-glass-filter-tabbar);
+  backdrop-filter: var(--bc-glass-filter-tabbar);
+  box-shadow: var(--bc-glass-shadow-tabbar);
+}
+
+/* ---- L1 Bar：表格表头（一个 blur 容器，单元格透明）---- */
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__header-wrapper {
+  background-color: var(--bc-glass-bar);
+  -webkit-backdrop-filter: var(--bc-glass-filter-card);
+  backdrop-filter: var(--bc-glass-filter-card);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-weak);
+}
+
+/* 固定列面板自带实色表头，其子级不再 blur（玻璃不套玻璃）*/
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__left .el-table-v2__header-wrapper,
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__right .el-table-v2__header-wrapper {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--bc-glass-bar-solid);
+  box-shadow: none;
+}
+
+/* ---- L3 Float：teleport 到 body 的下拉 / 选择面板（必须全局选择器）---- */
+:root[data-bc-theme="glass"] .el-popper.is-light {
+  padding: 0;
+  color: var(--bc-text);
+  background: var(--bc-glass-float);
+  -webkit-backdrop-filter: var(--bc-glass-filter-float);
+  backdrop-filter: var(--bc-glass-filter-float);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-md);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-lg);
+}
+
+/* 白色小三角会破坏材质 */
+:root[data-bc-theme="glass"] .el-popper.is-light .el-popper__arrow {
+  display: none;
+}
+
+:root[data-bc-theme="glass"] .el-dropdown-menu {
+  padding: 6px;
+  background-color: transparent;
+}
+
+:root[data-bc-theme="glass"] .el-dropdown-menu__item {
+  padding: 6px 10px;
+  border-radius: var(--bc-radius-sm);
+  color: var(--bc-text-muted);
+}
+
+:root[data-bc-theme="glass"] .el-dropdown-menu__item:not(.is-disabled):hover,
+:root[data-bc-theme="glass"] .el-dropdown-menu__item:not(.is-disabled):focus {
+  color: var(--bc-text);
+}
+
+:root[data-bc-theme="glass"] .el-dropdown-menu__item--divided {
+  margin: 6px -6px;
+  padding: 6px 16px;
+  border-top-color: var(--bc-border);
+}
+
+:root[data-bc-theme="glass"] .el-select-dropdown__list {
+  padding: 6px;
+}
+
+:root[data-bc-theme="glass"] .el-select-dropdown__item {
+  margin: 0;
+  padding: 0 12px;
+  border-radius: var(--bc-radius-sm);
+  color: var(--bc-text);
+}
+
+:root[data-bc-theme="glass"] .el-select-dropdown__item.is-hovering {
+  background-color: var(--bc-surface-hover);
+}
+
+:root[data-bc-theme="glass"] .el-select-dropdown__item.is-selected {
+  color: var(--bc-accent-strong);
+}
+
+:root[data-bc-theme="glass"] .el-select-dropdown__item.is-selected::after {
+  right: 12px;
+  background-color: var(--bc-accent-strong);
+}
+
+:root[data-bc-theme="glass"] .el-autocomplete-suggestion li:hover,
+:root[data-bc-theme="glass"] .el-autocomplete-suggestion li.highlighted {
+  background-color: var(--bc-surface-hover);
+}
+
+/* ---- L3 Float：右键菜单 ---- */
+:root[data-bc-theme="glass"] .context-menu {
+  /* 与 PopupManager（2000 起）同量级但略高，避免被先打开的 popper 压住 */
+  z-index: calc(var(--el-index-popper, 2000) + 10);
+  padding: 6px 0;
+  background-color: var(--bc-glass-float);
+  -webkit-backdrop-filter: var(--bc-glass-filter-float);
+  backdrop-filter: var(--bc-glass-filter-float);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-md);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-lg);
+}
+
+:root[data-bc-theme="glass"] .context-menu-header {
+  padding: 4px 16px 6px;
+  color: var(--bc-text-subtle);
+}
+
+:root[data-bc-theme="glass"] .context-menu button {
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  padding: 6px 10px;
+  border-radius: var(--bc-radius-sm);
+}
+
+/* ---- L3 Float：全局消息 ---- */
+:root[data-bc-theme="glass"] .el-message {
+  color: var(--bc-text);
+  background-color: var(--bc-glass-float);
+  -webkit-backdrop-filter: var(--bc-glass-filter-float);
+  backdrop-filter: var(--bc-glass-filter-float);
+  border-color: var(--bc-border);
+  border-radius: var(--bc-radius-md);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-lg);
+}
+
+/* ---- L4 Modal：对话框 / 抽屉 / 确认框 ---- */
+:root[data-bc-theme="glass"] .el-dialog,
+:root[data-bc-theme="glass"] .el-message-box {
+  color: var(--bc-text);
+  background: var(--bc-glass-modal);
+  -webkit-backdrop-filter: var(--bc-glass-filter-modal);
+  backdrop-filter: var(--bc-glass-filter-modal);
+  border: 1px solid var(--bc-border);
+  border-radius: var(--bc-radius-lg);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-xl);
+}
+
+:root[data-bc-theme="glass"] .el-dialog.detail-dialog {
+  border-radius: var(--bc-glass-radius-xl);
+}
+
+:root[data-bc-theme="glass"] .el-drawer {
+  background-color: var(--bc-glass-modal);
+  -webkit-backdrop-filter: var(--bc-glass-filter-modal);
+  backdrop-filter: var(--bc-glass-filter-modal);
+  border: 1px solid var(--bc-border);
+  /* EP 默认 transition: all 会在切换主题时对 backdrop-filter 做过渡，这里只保留位移 */
+  transition: transform var(--el-transition-duration);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-xl);
+}
+
+:root[data-bc-theme="glass"] .el-dialog__title,
+:root[data-bc-theme="glass"] .el-message-box__title {
+  color: var(--bc-text);
+  font-weight: 600;
+}
+
+:root[data-bc-theme="glass"] .el-dialog__footer,
+:root[data-bc-theme="glass"] .el-message-box__btns {
+  border-top: 1px solid var(--bc-border);
+}
+
+/* 对话框内的描述列表：边框与文字桥接到 glass 语义层 */
+:root[data-bc-theme="glass"] .el-descriptions__body {
+  color: var(--bc-text-muted);
+  background-color: transparent;
+}
+
+:root[data-bc-theme="glass"] .el-descriptions__body .el-descriptions__table.is-bordered .el-descriptions__cell {
+  border-color: var(--bc-border);
+}
+
+:root[data-bc-theme="glass"] .el-descriptions__content a {
+  color: var(--bc-accent-strong) !important;
+}
+
+/* 对话框内 border-card 标签页：EP 的实色背景会盖掉 L4 材质 */
+:root[data-bc-theme="glass"] .el-tabs--border-card {
+  background-color: transparent;
+  border-color: var(--bc-border);
+  box-shadow: none;
+}
+
+:root[data-bc-theme="glass"] .el-tabs--border-card > .el-tabs__header {
+  border-bottom-color: var(--bc-border);
+}
+
+:root[data-bc-theme="glass"] .el-tabs--border-card > .el-tabs__header .el-tabs__item.is-active {
+  background-color: transparent;
+  color: var(--bc-accent-strong);
+}
+
+:root[data-bc-theme="glass"] .el-tabs--border-card > .el-tabs__header .el-tabs__item:not(.is-disabled):hover {
+  color: var(--bc-accent-strong);
+}
+
+:root[data-bc-theme="glass"] .el-tabs--border-card > .el-tabs__header .el-tabs__item.is-active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--bc-accent);
+}
+
+/* 对话框内的文件 / Tracker 操作条与当前标签预览：内嵌井，只给 α 底色 */
+:root[data-bc-theme="glass"] .current-labels-preview {
+  background: var(--bc-glass-well);
+  border-radius: var(--bc-radius-sm);
+}
+
+/* ---- 全屏 ElLoading 遮罩：唯一允许 blur 的遮罩 ---- */
+:root[data-bc-theme="glass"] .el-loading-mask {
+  color: var(--bc-text);
+  background-color: var(--bc-glass-mask);
+}
+
+:root[data-bc-theme="glass"] body > .el-loading-mask.is-fullscreen {
+  -webkit-backdrop-filter: var(--bc-glass-filter-loading);
+  backdrop-filter: var(--bc-glass-filter-loading);
+}
+
+/* 对话框内的局部遮罩是已 blur 元素的后代 → 不再 blur（玻璃不套玻璃）*/
+:root[data-bc-theme="glass"] .el-dialog .el-loading-mask {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ==========================================================================
+   8. B 类表面：静态盖在 Aurora 上 → 只保留 α 背景 + 高光描边 + 阴影（不 blur）
+   ========================================================================== */
+:root[data-bc-theme="glass"] .app-sidebar {
+  background: var(--bc-glass-bar);
+}
+
+:root[data-bc-theme="glass"] .table-scroll {
+  border-radius: var(--bc-radius-lg);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight), var(--bc-glass-shadow-sm);
+}
+
+:root[data-bc-theme="glass"] .filter-submenu {
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight), var(--bc-glass-shadow-sm);
+}
+
+:root[data-bc-theme="glass"] .bc-card,
+:root[data-bc-theme="glass"] .el-card {
+  border-color: var(--bc-border);
+  border-radius: var(--bc-radius-lg);
+  color: var(--bc-text);
+  background-color: var(--bc-glass-card);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight), var(--bc-glass-shadow-sm);
+}
+
+:root[data-bc-theme="glass"] .el-card.is-always-shadow,
+:root[data-bc-theme="glass"] .el-card.is-hover-shadow:focus,
+:root[data-bc-theme="glass"] .el-card.is-hover-shadow:hover {
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight), var(--bc-glass-shadow-sm);
+}
+
+:root[data-bc-theme="glass"] .el-card__header {
+  border-bottom-color: var(--bc-border);
+}
+
+/* 登录面板外壳：L4 取值的 α 背景 + 阴影，不加 blur */
+:root[data-bc-theme="glass"] .login-shell {
+  border-radius: var(--bc-glass-radius-xl);
+  background: var(--bc-glass-modal);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-xl);
+}
+
+/* 移动端抽屉：内层透明以显示 el-drawer 的 L4 材质；标题栏为 L1 Bar（抽屉的后代，不 blur）*/
+:root[data-bc-theme="glass"] .el-drawer__body,
+:root[data-bc-theme="glass"] .drawer-inner {
+  background-color: transparent;
+}
+
+:root[data-bc-theme="glass"] .drawer-header {
+  background: var(--bc-glass-bar);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-weak);
+}
+
+/* ==========================================================================
+   9. 表格（el-table-v2）
+   ========================================================================== */
+:root[data-bc-theme="glass"] .el-table-v2 {
+  --el-table-bg-color: transparent;
+  --el-table-row-hover-bg-color: var(--bc-surface-hover);
+  --el-table-header-text-color: var(--bc-text-muted);
+  --el-table-border-color: var(--bc-border);
+  color: var(--bc-text);
+}
+
+/* 主面板透明，透出容器的 L2 α 背景 */
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__main {
+  background-color: transparent;
+}
+
+/* 左 / 右固定列：预合成实色，避免横向滚动内容透出 */
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__left,
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__right {
+  background-color: var(--bc-glass-card-solid);
+  box-shadow: var(--bc-glass-fixed-shadow);
+}
+
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__left {
+  border-right: 1px solid var(--bc-border);
+}
+
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__right {
+  border-left: 1px solid var(--bc-border);
+}
+
+/* 表头单元格透明（材质在 header-wrapper 上），去掉竖线 */
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__header-cell {
+  background-color: transparent;
+  color: var(--bc-text-muted);
+  letter-spacing: 0.02em;
+  font-size: 12px;
+  border-right: none;
+  border-bottom: none;
+}
+
+/* 行分隔线交给单元格的 1px 下边框，行自身不再叠一层 */
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__row {
+  border-bottom-color: transparent;
+}
+
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__row-cell {
+  border-right: 1px solid var(--bc-glass-row-divider);
+  border-bottom: 1px solid var(--bc-glass-row-divider);
+}
+
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__row--striped .el-table-v2__row-cell {
+  background-color: var(--bc-glass-zebra);
+}
+
+/* 行选中 = 复选框 + accent-soft 底（既有规则）+ 行首 2px 指示条 */
+:root[data-bc-theme="glass"] .table-scroll .el-table-v2__row.current-row .el-table-v2__row-cell:first-child {
+  box-shadow: inset 2px 0 0 var(--bc-accent);
+}
+
+/* 分享率标签：圆角 6，高档底色用文字级强调色（白字 ≥ 4.5:1）*/
+:root[data-bc-theme="glass"] .ratio-tag {
+  border-radius: var(--bc-glass-radius-xs);
+  font-weight: 500;
+}
+
+:root[data-bc-theme="glass"] .ratio-high {
+  background-color: var(--bc-accent-strong);
+}
+
+/* 普通表格（统计 / 辅种 / 限速策略页）：表体透明、表头内嵌井 */
+:root[data-bc-theme="glass"] .el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-expanded-cell-bg-color: transparent;
+  --el-table-header-bg-color: var(--bc-glass-well);
+  --el-table-row-hover-bg-color: var(--bc-surface-hover);
+  --el-table-border-color: var(--bc-glass-row-divider);
+  --el-table-text-color: var(--bc-text);
+  --el-table-header-text-color: var(--bc-text-muted);
+  color: var(--bc-text);
+  background-color: transparent;
+}
+
+:root[data-bc-theme="glass"] .el-table th.el-table__cell {
+  color: var(--bc-text-muted);
+}
+
+/* 空状态插画：项目全部用 EP 内置插画（无自定义 image），SVG 的 10 个填充色全由 --el-empty-fill-color-* 驱动，
+   深色下把这条「白 → 浅灰」色阶重映射为「深灰」色阶，比 opacity / invert 更自然，且不会把说明文字一起压暗 */
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-empty {
+  --el-empty-fill-color-0: #2c2e37;
+  --el-empty-fill-color-1: #2a2c35;
+  --el-empty-fill-color-2: #282a32;
+  --el-empty-fill-color-3: #26282f;
+  --el-empty-fill-color-4: #232530;
+  --el-empty-fill-color-5: #212329;
+  --el-empty-fill-color-6: #1f2128;
+  --el-empty-fill-color-7: #1d1f25;
+  --el-empty-fill-color-8: #1b1d23;
+  --el-empty-fill-color-9: #181a20;
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-empty__image svg {
+  opacity: 0.85;
+}
+
+/* ==========================================================================
+   10. 文字对比度规则
+   ========================================================================== */
+:root[data-bc-theme="glass"] a {
+  color: var(--bc-accent-strong);
+}
+
+/* L1 Bar 上 ≤ 13px 文字：subtle → subtle-bar / muted */
+:root[data-bc-theme="glass"] .sidebar-nav__title,
+:root[data-bc-theme="glass"] .drawer-version,
+:root[data-bc-theme="glass"] .status-header__title,
+:root[data-bc-theme="glass"] .status-header__version,
+:root[data-bc-theme="glass"] .status-label {
+  color: var(--bc-text-subtle-bar);
+}
+
+/* 侧栏状态井的方向色：仅在 glass 下启用，classic 主题保持中性灰 */
+:root[data-bc-theme="glass"] .status-arrow.is-down {
+  color: var(--bc-glass-down);
+}
+
+:root[data-bc-theme="glass"] .status-arrow.is-up {
+  color: var(--bc-glass-up-text);
+}
+
+:root[data-bc-theme="glass"] .tabbar__item {
+  color: var(--bc-text-subtle-bar);
+}
+
+:root[data-bc-theme="glass"] .tabbar__item.is-active {
+  color: var(--bc-accent-strong);
+}
+
+:root[data-bc-theme="glass"] .tabbar__item.is-active::before {
+  border-radius: var(--bc-radius-pill);
+}
+
+/* 侧栏徽标：更轻的中性底、无描边；激活态为承载白字的实色强调底 */
+:root[data-bc-theme="glass"] .nav-item__badge {
+  background: var(--bc-glass-badge-bg);
+  border-color: transparent;
+  color: var(--bc-text-muted);
+  font-weight: 500;
+}
+
+:root[data-bc-theme="glass"] .nav-item.is-active .nav-item__badge {
+  background: var(--bc-glass-accent-fill);
+  border-color: var(--bc-glass-accent-fill);
+  color: #fff;
+}
+
+:root[data-bc-theme="glass"] .nav-item.is-active {
+  box-shadow: inset 0 1px 0 var(--bc-glass-nav-active-highlight);
+}
+
+:root[data-bc-theme="glass"] .limit-cell:hover {
+  color: var(--bc-accent-strong);
+  text-decoration: underline;
+}
+
+:root[data-bc-theme="glass"] .el-pagination.is-background .btn-prev.is-active,
+:root[data-bc-theme="glass"] .el-pagination.is-background .btn-next.is-active,
+:root[data-bc-theme="glass"] .el-pagination.is-background .el-pager li.is-active {
+  background-color: var(--bc-glass-accent-fill);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   11. 按钮 / 输入框 / 标签 / 进度条
+   ========================================================================== */
+/* default（glass）*/
+:root[data-bc-theme="glass"] .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-text):not(.is-link):not(.is-plain) {
+  --el-button-bg-color: var(--bc-glass-control-bg);
+  --el-button-border-color: var(--bc-border);
+  --el-button-text-color: var(--bc-text);
+  --el-button-hover-bg-color: var(--bc-glass-control-bg-hover);
+  --el-button-hover-border-color: var(--bc-border-strong);
+  --el-button-hover-text-color: var(--bc-text);
+  --el-button-active-bg-color: var(--bc-glass-control-bg);
+  --el-button-active-border-color: var(--bc-border-strong);
+  --el-button-active-text-color: var(--bc-text);
+  --el-button-disabled-text-color: var(--bc-text-subtle);
+  --el-button-disabled-bg-color: var(--bc-glass-well);
+  --el-button-disabled-border-color: transparent;
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-weak);
+}
+
+/* primary solid：浅色用 accent-strong 渐变（白字 ≥ 4.5:1），深色保留 #0A84FF（D-2）*/
+:root[data-bc-theme="glass"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  --el-button-bg-color: var(--bc-glass-accent-fill);
+  --el-button-border-color: var(--bc-glass-accent-fill);
+  --el-button-hover-bg-color: var(--bc-glass-btn-primary-hover);
+  --el-button-hover-border-color: var(--bc-glass-btn-primary-hover);
+  --el-button-hover-text-color: #fff;
+  --el-button-active-bg-color: var(--bc-glass-btn-primary-active);
+  --el-button-active-border-color: var(--bc-glass-btn-primary-active);
+  background-image: var(--bc-glass-btn-primary-image);
+  box-shadow: var(--bc-glass-shadow-accent);
+}
+
+:root[data-bc-theme="glass"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background-image: var(--bc-glass-btn-primary-image-hover);
+}
+
+:root[data-bc-theme="glass"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):active {
+  background-image: none;
+}
+
+/* danger solid：纯色深底（白字 ≥ 4.5:1），不做亮色渐变（D-2）*/
+:root[data-bc-theme="glass"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
+  --el-button-bg-color: var(--bc-glass-btn-danger-bg);
+  --el-button-border-color: var(--bc-glass-btn-danger-bg);
+  --el-button-hover-bg-color: var(--bc-glass-btn-danger-hover);
+  --el-button-hover-border-color: var(--bc-glass-btn-danger-hover);
+  --el-button-hover-text-color: #fff;
+  --el-button-active-bg-color: var(--bc-glass-btn-danger-active);
+  --el-button-active-border-color: var(--bc-glass-btn-danger-active);
+}
+
+/* solid 禁用态归零：上面的 solid 规则优先级高于 EP 的 .el-button.is-disabled，
+   EP 的 background-image: none 不会生效，这里显式去掉渐变底图与强调投影，只剩禁用底色（明暗共用）*/
+:root[data-bc-theme="glass"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link).is-disabled,
+:root[data-bc-theme="glass"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link).is-disabled:hover {
+  background-image: none;
+  box-shadow: none;
+}
+
+:root[data-bc-theme="glass"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link).is-disabled,
+:root[data-bc-theme="glass"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link).is-disabled:hover {
+  box-shadow: none;
+}
+
+/* 深色 solid 禁用态（primary / success / warning / danger / info）：
+   EP 默认底色是 {type}-light-5（约 50% 混白，近白实底）+ 白字，在深色玻璃里非常刺眼；
+   统一改为「语义 soft 低 alpha 底 + 透明描边 + 语义色与 muted 混合后的降饱和文字」。
+   只改 CSS 变量，EP 的 .is-disabled 规则会直接消费，不存在优先级竞争。浅色保持 EP 淡色底。 */
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link).is-disabled {
+  --el-button-disabled-bg-color: var(--bc-accent-soft);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: color-mix(in srgb, var(--bc-accent) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--success:not(.is-plain):not(.is-text):not(.is-link).is-disabled {
+  --el-button-disabled-bg-color: var(--bc-success-soft);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: color-mix(in srgb, var(--bc-success) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--warning:not(.is-plain):not(.is-text):not(.is-link).is-disabled {
+  --el-button-disabled-bg-color: var(--bc-warning-soft);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: color-mix(in srgb, var(--bc-warning) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link).is-disabled {
+  --el-button-disabled-bg-color: var(--bc-danger-soft);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: color-mix(in srgb, var(--bc-danger) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--info:not(.is-plain):not(.is-text):not(.is-link).is-disabled {
+  --el-button-disabled-bg-color: var(--bc-info-soft);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: color-mix(in srgb, var(--bc-info) 55%, var(--bc-text-muted));
+}
+
+/* 深色 plain 禁用态：工具栏「删除」实际是 type="danger" plain，EP 对 .is-plain.is-disabled 直接写死属性
+   （{type}-light-9 近白底 + light-5 淡色字），不走变量，所以这里要用同规则形态覆盖属性。
+   取值与 solid 禁用态一致：语义 soft 底 + 透明描边 + 降饱和语义色文字；默认 plain 用井色。 */
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button.is-plain {
+  --bc-glass-btn-plain-disabled-bg: var(--bc-glass-well);
+  --bc-glass-btn-plain-disabled-text: var(--bc-text-subtle);
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--primary.is-plain {
+  --bc-glass-btn-plain-disabled-bg: var(--bc-accent-soft);
+  --bc-glass-btn-plain-disabled-text: color-mix(in srgb, var(--bc-accent) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--success.is-plain {
+  --bc-glass-btn-plain-disabled-bg: var(--bc-success-soft);
+  --bc-glass-btn-plain-disabled-text: color-mix(in srgb, var(--bc-success) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--warning.is-plain {
+  --bc-glass-btn-plain-disabled-bg: var(--bc-warning-soft);
+  --bc-glass-btn-plain-disabled-text: color-mix(in srgb, var(--bc-warning) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--danger.is-plain {
+  --bc-glass-btn-plain-disabled-bg: var(--bc-danger-soft);
+  --bc-glass-btn-plain-disabled-text: color-mix(in srgb, var(--bc-danger) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button--info.is-plain {
+  --bc-glass-btn-plain-disabled-bg: var(--bc-info-soft);
+  --bc-glass-btn-plain-disabled-text: color-mix(in srgb, var(--bc-info) 55%, var(--bc-text-muted));
+}
+
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button.is-plain.is-disabled,
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button.is-plain.is-disabled:hover,
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button.is-plain.is-disabled:focus,
+:root[data-bc-theme="glass"][data-bc-mode="dark"] .el-button.is-plain.is-disabled:active {
+  background-color: var(--bc-glass-btn-plain-disabled-bg);
+  border-color: transparent;
+  color: var(--bc-glass-btn-plain-disabled-text);
+}
+
+/* plain：语义 soft 底 + ring 描边 + 文字级色 */
+:root[data-bc-theme="glass"] .el-button--primary.is-plain {
+  --el-button-bg-color: var(--bc-accent-soft);
+  --el-button-border-color: var(--bc-accent-ring);
+  --el-button-text-color: var(--bc-accent-strong);
+  --el-button-hover-bg-color: var(--bc-glass-accent-fill);
+  --el-button-hover-border-color: var(--bc-glass-accent-fill);
+  --el-button-hover-text-color: #fff;
+}
+
+:root[data-bc-theme="glass"] .el-button--danger.is-plain {
+  --el-button-bg-color: var(--bc-danger-soft);
+  --el-button-border-color: var(--bc-danger-ring);
+  --el-button-text-color: var(--bc-danger);
+  --el-button-hover-bg-color: var(--bc-danger);
+  --el-button-hover-border-color: var(--bc-danger);
+  --el-button-hover-text-color: #fff;
+}
+
+/* 文字 / 链接按钮：文字级强调色 */
+:root[data-bc-theme="glass"] .el-button--primary.is-text,
+:root[data-bc-theme="glass"] .el-button--primary.is-link {
+  --el-button-text-color: var(--bc-accent-strong);
+  --el-button-hover-text-color: var(--bc-accent-strong);
+  --el-button-hover-bg-color: var(--bc-surface-hover);
+}
+
+/* 输入框 / 下拉框 / 文本域：α 填充 + 控件描边（D-3），不加 blur */
+:root[data-bc-theme="glass"] .el-input__wrapper,
+:root[data-bc-theme="glass"] .el-select__wrapper,
+:root[data-bc-theme="glass"] .el-textarea__inner {
+  background-color: var(--bc-glass-control-bg);
+  box-shadow: 0 0 0 1px var(--bc-border-control) inset;
+  border-radius: var(--bc-glass-radius-control);
+  color: var(--bc-text);
+}
+
+:root[data-bc-theme="glass"] .el-input__wrapper:hover,
+:root[data-bc-theme="glass"] .el-select__wrapper.is-hovering:not(.is-focused),
+:root[data-bc-theme="glass"] .el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px var(--bc-border-control-hover) inset;
+}
+
+:root[data-bc-theme="glass"] .el-input__wrapper.is-disabled,
+:root[data-bc-theme="glass"] .el-select__wrapper.is-disabled,
+:root[data-bc-theme="glass"] .el-textarea__inner:disabled {
+  background-color: var(--bc-glass-well);
+  box-shadow: 0 0 0 1px var(--bc-border) inset;
+  color: var(--bc-text-subtle);
+}
+
+/* focus：描边 accent + 双层焦点环（替换 EP 默认单层 box-shadow）*/
+:root[data-bc-theme="glass"] .el-input__wrapper.is-focus,
+:root[data-bc-theme="glass"] .el-select__wrapper.is-focused,
+:root[data-bc-theme="glass"] .el-textarea__inner:focus {
+  box-shadow:
+    0 0 0 1px var(--bc-accent) inset,
+    0 0 0 2px var(--bc-glass-focus-gap),
+    0 0 0 4px var(--bc-accent);
+}
+
+/* 错误态：danger 描边 + danger 环 */
+:root[data-bc-theme="glass"] .el-form-item.is-error .el-input__wrapper,
+:root[data-bc-theme="glass"] .el-form-item.is-error .el-select__wrapper,
+:root[data-bc-theme="glass"] .el-form-item.is-error .el-textarea__inner {
+  box-shadow:
+    0 0 0 1px var(--bc-danger) inset,
+    0 0 0 2px var(--bc-glass-focus-gap),
+    0 0 0 4px var(--bc-danger);
+}
+
+/* 标签：染色 pill */
+:root[data-bc-theme="glass"] .el-tag {
+  --el-tag-border-radius: var(--bc-radius-pill);
+  --el-tag-font-size: 12px;
+  font-weight: 500;
+}
+
+/* 进度条轨道 */
+:root[data-bc-theme="glass"] .el-progress-bar__outer {
+  background-color: var(--bc-glass-progress-track);
+}
+
+/* ==========================================================================
+   12. 焦点环：双层（2px 表面色 + 2px 实色 accent），尊重元素自身圆角
+   ========================================================================== */
+:root[data-bc-theme="glass"] :focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bc-glass-focus-gap),
+    0 0 0 4px var(--bc-accent);
+}
+
+/* 模态容器可能被 EP 编程式聚焦，焦点环不能覆盖其材质阴影 */
+:root[data-bc-theme="glass"] .el-dialog:focus-visible,
+:root[data-bc-theme="glass"] .el-drawer:focus-visible,
+:root[data-bc-theme="glass"] .el-message-box:focus-visible {
+  outline: none;
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-strong), var(--bc-glass-shadow-xl);
+}
+
+/* 输入类控件的环画在外层 wrapper 上，内部 input 不再重复描环 */
+:root[data-bc-theme="glass"] .el-input__inner:focus-visible,
+:root[data-bc-theme="glass"] .el-select__input:focus-visible,
+:root[data-bc-theme="glass"] .el-select__selected-item:focus-visible,
+:root[data-bc-theme="glass"] .el-range-input:focus-visible,
+:root[data-bc-theme="glass"] .el-checkbox__original:focus-visible,
+:root[data-bc-theme="glass"] .el-radio__original:focus-visible {
+  box-shadow: none;
+}
+
+/* 复选框 / 单选：仅键盘焦点（focus-visible）时在 14px 盒上画双层环 */
+:root[data-bc-theme="glass"] .el-checkbox__input:has(.el-checkbox__original:focus-visible) .el-checkbox__inner,
+:root[data-bc-theme="glass"] .el-radio:has(.el-radio__original:focus-visible) .el-radio__inner {
+  box-shadow:
+    0 0 0 2px var(--bc-glass-focus-gap),
+    0 0 0 4px var(--bc-accent);
+}
+
+/* ==========================================================================
+   13. 顶栏按钮 / 卡片 / 暂停态
+   ========================================================================== */
+:root[data-bc-theme="glass"] .icon-button {
+  border-radius: var(--bc-glass-radius-control);
+  background: var(--bc-glass-control-bg);
+  border-color: var(--bc-border);
+  color: var(--bc-text-muted);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight-weak);
+  position: relative;
+}
+
+:root[data-bc-theme="glass"] .icon-button:hover {
+  background: var(--bc-glass-control-bg-hover);
+  border-color: var(--bc-border-strong);
+  color: var(--bc-text);
+}
+
+:root[data-bc-theme="glass"] .drawer-header .icon-button {
+  background: var(--bc-glass-control-bg);
+  border-color: var(--bc-border);
+  color: var(--bc-text);
+}
+
+:root[data-bc-theme="glass"] .accent-dot {
+  box-shadow: inset 0 0 0 1px var(--bc-border-strong);
+}
+
+:root[data-bc-theme="glass"] .torrent-card {
+  border-radius: var(--bc-radius-lg);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight), var(--bc-glass-shadow-sm);
+  transition:
+    border-color var(--bc-glass-dur-base) var(--bc-glass-ease-out),
+    box-shadow var(--bc-glass-dur-base) var(--bc-glass-ease-out),
+    transform var(--bc-glass-dur-base) var(--bc-glass-ease-out);
+}
+
+:root[data-bc-theme="glass"] .torrent-card:hover:not(.is-selected) {
+  border-color: var(--bc-border-strong);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 var(--bc-glass-highlight), var(--bc-glass-shadow-md);
+}
+
+:root[data-bc-theme="glass"] .torrent-card:hover:not(.is-selected):active {
+  transform: translateY(-1px) scale(0.995);
+}
+
+:root[data-bc-theme="glass"] .torrent-card.is-selected {
+  box-shadow: 0 0 0 3px var(--bc-accent-ring), var(--bc-glass-shadow-md);
+}
+
+/* 暂停态：不对整卡用 opacity（α 叠加不可控），改为灰化进度条与状态标签 */
+:root[data-bc-theme="glass"] .torrent-card.is-paused {
+  opacity: 1;
+}
+
+:root[data-bc-theme="glass"] .torrent-card.is-paused .el-progress-bar,
+:root[data-bc-theme="glass"] .torrent-card.is-paused .el-tag {
+  filter: grayscale(1);
+  opacity: 0.8;
+}
+
+/* ==========================================================================
+   14. 触控命中区（pointer: coarse）：视觉尺寸不变，扩大可点区域到 ≥ 44
+   ========================================================================== */
+@media (pointer: coarse) {
+  :root[data-bc-theme="glass"] .icon-button::before {
+    content: "";
+    position: absolute;
+    inset: -5px;
+  }
+
+  :root[data-bc-theme="glass"] .app-header__right {
+    gap: 8px;
+  }
+
+  :root[data-bc-theme="glass"] .torrent-card__check .el-checkbox__inner::before,
+  :root[data-bc-theme="glass"] .el-table-v2__row-cell .el-checkbox__inner::before {
+    content: "";
+    position: absolute;
+    inset: -15px;
+  }
+
+  :root[data-bc-theme="glass"] .limit-cell {
+    display: inline-block;
+    padding: 13px 4px;
+    margin-left: -4px;
+  }
+
+  :root[data-bc-theme="glass"] .drawer-scroll .nav-item {
+    padding: 12px;
+  }
+}
+
+/* 移动端分页按钮 24 → 36（pager-count 5 时 5×36 + 2×36 = 252 ≤ 320）*/
+@media (max-width: 768px) {
+  :root[data-bc-theme="glass"] .pagination .btn-prev,
+  :root[data-bc-theme="glass"] .pagination .btn-next,
+  :root[data-bc-theme="glass"] .pagination .el-pager li {
+    min-width: 36px;
+  }
+}

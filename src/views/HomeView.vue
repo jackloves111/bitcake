@@ -129,6 +129,7 @@
   <el-select
   v-model="trackerFilter"
   :placeholder="t('torrent.selectTracker')"
+  :aria-label="t('torrent.selectTracker')"
   clearable
   filterable
   :filter-method="filterTrackerOptions"
@@ -147,6 +148,7 @@
   v-if="!isTransmission && categoryOptions.length > 0"
   v-model="categoryFilter"
   :placeholder="t('torrent.selectCategory')"
+  :aria-label="t('torrent.selectCategory')"
   clearable
   filterable
   class="filter-select"
@@ -164,6 +166,7 @@
   v-if="downloadDirOptions.length > 0"
   v-model="downloadDirFilter"
   :placeholder="t('torrent.selectSaveDir')"
+  :aria-label="t('torrent.selectSaveDir')"
   clearable
   filterable
   class="filter-select"
@@ -181,6 +184,7 @@
   v-if="errorTypeOptions.length > 0"
   v-model="errorTypeFilter"
   :placeholder="t('torrent.selectErrorType')"
+  :aria-label="t('torrent.selectErrorType')"
   clearable
   filterable
   class="filter-select"
@@ -198,6 +202,7 @@
   v-if="labelOptions.length > 0"
   v-model="labelFilter"
   :placeholder="t('torrent.selectLabel')"
+  :aria-label="t('torrent.selectLabel')"
   clearable
   filterable
   class="filter-select"
@@ -219,6 +224,7 @@
   <el-input
   v-model="searchKeyword"
   :placeholder="t('torrent.searchTorrent')"
+  :aria-label="t('torrent.searchTorrent')"
   :prefix-icon="Search"
   clearable
   class="filter-input"
@@ -4021,6 +4027,14 @@ const handleFileRemove = (file: any) => {
   }
 };
 
+/** ElLoading 全屏遮罩色：读取 CSS 变量 --bc-loading-mask（glass 为半透明遮罩，其余主题为原 rgba 值） */
+const getLoadingMaskBackground = (): string => {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--bc-loading-mask")
+    .trim();
+  return value || "rgba(0, 0, 0, 0.7)";
+};
+
 // 添加种子
 const handleAddTorrent = async () => {
   let loadingInstance: ReturnType<typeof ElLoading.service> | null = null;
@@ -4057,7 +4071,7 @@ const handleAddTorrent = async () => {
       loadingInstance = ElLoading.service({
         lock: true,
         text: t('torrent.message.addingTorrent', { current: 1, total: magnetLinks.length }),
-        background: "rgba(0, 0, 0, 0.7)",
+        background: getLoadingMaskBackground(),
       });
 
       for (let i = 0; i < magnetLinks.length; i++) {
@@ -4095,7 +4109,7 @@ const handleAddTorrent = async () => {
       loadingInstance = ElLoading.service({
         lock: true,
         text: t('torrent.message.addingTorrentFile', { current: 1, total: fileCount }),
-        background: "rgba(0, 0, 0, 0.7)",
+        background: getLoadingMaskBackground(),
       });
 
       for (let i = 0; i < fileCount; i++) {

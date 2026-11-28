@@ -177,7 +177,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
+import { graphic, use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent, TitleComponent } from 'echarts/components'
@@ -186,6 +186,7 @@ import { torrentBackendName } from '@/config/torrentClient'
 import type { Torrent } from '@/types/transmission'
 import { TorrentStatusEnum, type TorrentTrackerStat } from '@/types/torrent'
 import { useSystemStatusStore } from '@/stores/systemStatus'
+import { useThemeStore } from '@/stores/theme'
 import { getTrackerDisplayName } from '@/utils/torrent'
 import { formatBytes, formatSpeed } from '@/utils/format'
 
@@ -207,7 +208,81 @@ const torrents = ref<Torrent[]>([])
 const systemStatusStore = useSystemStatusStore()
 const { sessionStats, sessionConfig, freeSpaceBytes, lastUpdated } =
   storeToRefs(systemStatusStore)
+const { currentTheme, currentMode } = storeToRefs(useThemeStore())
 const speedHistory = ref<SpeedPoint[]>([])
+
+/**
+ * 毛玻璃主题下的图表配色（canvas 无法读取 CSS 变量，这里与 glass.css 的取值保持一致）。
+ * 非 glass 主题返回 null，三处 option 不注入任何颜色，保持 ECharts 既有默认行为。
+ */
+interface GlassChartTheme {
+  palette: string[]
+  axisLabel: string
+  gridLine: string
+  splitLine: string
+  tooltipBg: string
+  tooltipBorder: string
+  tooltipText: string
+}
+
+const GLASS_CHART_THEMES: Record<'light' | 'dark', GlassChartTheme> = {
+  light: {
+    palette: ['#007AFF', '#FF9500', '#34C759', '#5856D6', '#FFCC00', '#AF52DE'],
+    axisLabel: '#515154',
+    gridLine: 'rgba(60, 60, 67, 0.12)',
+    splitLine: 'rgba(60, 60, 67, 0.06)',
+    tooltipBg: '#1D1D1F',
+    tooltipBorder: 'rgba(255, 255, 255, 0.14)',
+    tooltipText: '#F5F5F7',
+  },
+  dark: {
+    palette: ['#0A84FF', '#FF9F0A', '#30D158', '#5E5CE6', '#FFD60A', '#BF5AF2'],
+    axisLabel: '#A1A1A6',
+    gridLine: 'rgba(235, 235, 245, 0.10)',
+    splitLine: 'rgba(235, 235, 245, 0.06)',
+    tooltipBg: '#2C2D33',
+    tooltipBorder: 'rgba(255, 255, 255, 0.12)',
+    tooltipText: '#F5F5F7',
+  },
+}
+
+const glassChart = computed<GlassChartTheme | null>(() =>
+  currentTheme.value === 'glass' ? GLASS_CHART_THEMES[currentMode.value] : null
+)
+
+/** #RRGGBB → rgba()，用于面积渐变的透明端 */
+const hexToRgba = (hex: string, alpha: number) => {
+  const value = hex.replace('#', '')
+  const r = parseInt(value.slice(0, 2), 16)
+  const g = parseInt(value.slice(2, 4), 16)
+  const b = parseInt(value.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/** 面积渐变（glass 下替代纯 opacity 平涂），非 glass 返回 null */
+const glassAreaStyle = (color: string, peak: number) => {
+  if (!glassChart.value) return null
+  return {
+    color: new graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: hexToRgba(color, peak) },
+      { offset: 1, color: hexToRgba(color, 0) },
+    ]),
+  }
+}
+
+/** glass 下的 tooltip 配置：实色深底，不加 backdrop-filter；非 glass 返回空对象 */
+const glassTooltip = (g: GlassChartTheme | null) =>
+  g
+    ? {
+        backgroundColor: g.tooltipBg,
+        borderColor: g.tooltipBorder,
+        textStyle: { color: g.tooltipText },
+        extraCssText:
+          'box-shadow:0 12px 40px rgba(16,24,40,.24);border-radius:12px;padding:8px 12px;font-size:12px;',
+        confine: true,
+        transitionDuration: 0.15,
+      }
+    : {}
 
 const totalUploaded = computed(
   () => sessionStats.value?.['cumulative-stats'].uploadedBytes || 0
@@ -304,137 +379,181 @@ const topTorrents = computed(() =>
     }))
 )
 
-const speedChartOptions = computed(() => ({
-  tooltip: {
-    trigger: 'axis',
-    formatter: (params: any) => {
-      if (!Array.isArray(params)) return ''
-      const header = `${params[0]?.axisValueLabel || ''}<br/>`
-      const lines = params
-        .map(
-          (item) => `${item.marker}${item.seriesName}：${formatSpeed(item.data ?? 0)}`
-        )
-        .join('<br/>')
-      return header + lines
+const speedChartOptions = computed(() => {
+  const g = glassChart.value
+  const downloadColor = g?.palette[0] ?? '#007AFF'
+  const uploadColor = g?.palette[1] ?? '#FF9500'
+  return {
+    // canvas 白底会盖掉玻璃材质，显式透明（ECharts 默认亦为透明，对既有主题无影响）
+    backgroundColor: 'transparent',
+    ...(g ? { color: g.palette } : {}),
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        if (!Array.isArray(params)) return ''
+        const header = `${params[0]?.axisValueLabel || ''}<br/>`
+        const lines = params
+          .map(
+            (item) => `${item.marker}${item.seriesName}：${formatSpeed(item.data ?? 0)}`
+          )
+          .join('<br/>')
+        return header + lines
+      },
+      ...glassTooltip(g),
     },
-  },
-  legend: {
-    data: [t('stats.downloadSpeed'), t('stats.uploadSpeed')],
-  },
-  grid: {
-    left: 30,
-    right: 10,
-    bottom: 10,
-    containLabel: true,
-  },
-  xAxis: {
-    type: 'category',
-    boundaryGap: false,
-    data: speedHistory.value.map((point) => point.time),
-  },
-  yAxis: {
-    type: 'value',
-    axisLabel: {
-      formatter: (value: number) => formatSpeed(value),
+    legend: {
+      data: [t('stats.downloadSpeed'), t('stats.uploadSpeed')],
+      ...(g ? { icon: 'roundRect', textStyle: { color: g.axisLabel } } : {}),
     },
-  },
-  series: [
-    {
-      name: t('stats.downloadSpeed'),
-      type: 'line',
-      smooth: true,
-      areaStyle: { opacity: 0.15 },
-      data: speedHistory.value.map((point) => point.download),
+    grid: {
+      left: 30,
+      right: 10,
+      bottom: 10,
+      containLabel: true,
     },
-    {
-      name: t('stats.uploadSpeed'),
-      type: 'line',
-      smooth: true,
-      areaStyle: { opacity: 0.1 },
-      data: speedHistory.value.map((point) => point.upload),
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: speedHistory.value.map((point) => point.time),
+      ...(g
+        ? { axisLine: { lineStyle: { color: g.gridLine } }, axisLabel: { color: g.axisLabel } }
+        : {}),
     },
-  ],
-}))
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: (value: number) => formatSpeed(value),
+        ...(g ? { color: g.axisLabel } : {}),
+      },
+      ...(g ? { splitLine: { lineStyle: { color: g.splitLine } } } : {}),
+    },
+    series: [
+      {
+        name: t('stats.downloadSpeed'),
+        type: 'line',
+        smooth: true,
+        ...(g ? { lineStyle: { width: 2.5 } } : {}),
+        areaStyle: glassAreaStyle(downloadColor, 0.25) ?? { opacity: 0.15 },
+        data: speedHistory.value.map((point) => point.download),
+      },
+      {
+        name: t('stats.uploadSpeed'),
+        type: 'line',
+        smooth: true,
+        ...(g ? { lineStyle: { width: 2.5 } } : {}),
+        areaStyle: glassAreaStyle(uploadColor, 0.18) ?? { opacity: 0.1 },
+        data: speedHistory.value.map((point) => point.upload),
+      },
+    ],
+  }
+})
 
-const topTorrentChartOptions = computed(() => ({
-  tooltip: {
-    trigger: 'axis',
-    axisPointer: {
-      type: 'shadow',
-    },
-    formatter: (params: any) => {
-      if (!Array.isArray(params) || !params.length) return ''
-      const name = params[0].name
-      const lines = params
-        .map((item) => `${item.marker}${item.seriesName}：${formatBytes(item.value || 0)}`)
-        .join('<br/>')
-      return `${name}<br/>${lines}`
-    },
-  },
-  legend: { data: [t('stats.cumulativeDownload'), t('stats.cumulativeUpload')] },
-  grid: {
-    left: 0,
-    right: 20,
-    bottom: 0,
-    containLabel: true,
-  },
-  xAxis: {
-    type: 'value',
-    axisLabel: {
-      formatter: (value: number) => formatBytes(value),
-    },
-  },
-  yAxis: {
-    type: 'category',
-    data: topTorrents.value.map((item) => item.name),
-    axisLabel: {
-      formatter: (value: string) => (value.length > 16 ? `${value.slice(0, 16)}…` : value),
-    },
-  },
-  series: [
-    {
-      name: t('stats.cumulativeDownload'),
-      type: 'bar',
-      stack: 'total',
-      emphasis: {
-        focus: 'series',
+const topTorrentChartOptions = computed(() => {
+  const g = glassChart.value
+  return {
+    backgroundColor: 'transparent',
+    ...(g ? { color: g.palette } : {}),
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow',
       },
-      data: topTorrents.value.map((item) => item.downloaded),
-    },
-    {
-      name: t('stats.cumulativeUpload'),
-      type: 'bar',
-      stack: 'total',
-      emphasis: {
-        focus: 'series',
+      formatter: (params: any) => {
+        if (!Array.isArray(params) || !params.length) return ''
+        const name = params[0].name
+        const lines = params
+          .map((item) => `${item.marker}${item.seriesName}：${formatBytes(item.value || 0)}`)
+          .join('<br/>')
+        return `${name}<br/>${lines}`
       },
-      data: topTorrents.value.map((item) => item.uploaded),
+      ...glassTooltip(g),
     },
-  ],
-}))
+    legend: {
+      data: [t('stats.cumulativeDownload'), t('stats.cumulativeUpload')],
+      ...(g ? { icon: 'roundRect', textStyle: { color: g.axisLabel } } : {}),
+    },
+    grid: {
+      left: 0,
+      right: 20,
+      bottom: 0,
+      containLabel: true,
+    },
+    xAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: (value: number) => formatBytes(value),
+        ...(g ? { color: g.axisLabel } : {}),
+      },
+      ...(g ? { splitLine: { lineStyle: { color: g.splitLine } } } : {}),
+    },
+    yAxis: {
+      type: 'category',
+      data: topTorrents.value.map((item) => item.name),
+      axisLabel: {
+        formatter: (value: string) => (value.length > 16 ? `${value.slice(0, 16)}…` : value),
+        ...(g ? { color: g.axisLabel } : {}),
+      },
+      ...(g ? { axisLine: { lineStyle: { color: g.gridLine } } } : {}),
+    },
+    series: [
+      {
+        name: t('stats.cumulativeDownload'),
+        type: 'bar',
+        stack: 'total',
+        emphasis: {
+          focus: 'series',
+        },
+        ...(g ? { itemStyle: { borderRadius: [4, 4, 0, 0] } } : {}),
+        data: topTorrents.value.map((item) => item.downloaded),
+      },
+      {
+        name: t('stats.cumulativeUpload'),
+        type: 'bar',
+        stack: 'total',
+        emphasis: {
+          focus: 'series',
+        },
+        ...(g ? { itemStyle: { borderRadius: [4, 4, 0, 0] } } : {}),
+        data: topTorrents.value.map((item) => item.uploaded),
+      },
+    ],
+  }
+})
 
-const trackerShareChartOptions = computed(() => ({
-  tooltip: {
-    trigger: 'item',
-    formatter: ({ name, value, percent }: any) =>
-      `${name}<br/>${t('stats.cumulativeUpload')}：${formatBytes(value || 0)}<br/>占比：${percent}%`,
-  },
-  legend: {
-    show: false,
-  },
-  series: [
-    {
-      name: t('stats.trackerUploadShare'),
-      type: 'pie',
-      radius: ['40%', '70%'],
-      data: trackerShareData.value,
-      label: {
-        formatter: '{d}%'
-      },
-      labelLine: { show: true },
+const trackerShareChartOptions = computed(() => {
+  const g = glassChart.value
+  return {
+    backgroundColor: 'transparent',
+    ...(g ? { color: g.palette } : {}),
+    tooltip: {
+      trigger: 'item',
+      formatter: ({ name, value, percent }: any) =>
+        `${name}<br/>${t('stats.cumulativeUpload')}：${formatBytes(value || 0)}<br/>占比：${percent}%`,
+      ...glassTooltip(g),
     },
-  ],
-}))
+    legend: {
+      show: false,
+    },
+    series: [
+      {
+        name: t('stats.trackerUploadShare'),
+        type: 'pie',
+        radius: ['40%', '70%'],
+        data: trackerShareData.value,
+        // glass：扇区之间不描白边
+        ...(g ? { itemStyle: { borderColor: 'transparent', borderWidth: 2 } } : {}),
+        label: {
+          formatter: '{d}%',
+          ...(g ? { color: g.axisLabel } : {}),
+        },
+        labelLine: {
+          show: true,
+          ...(g ? { lineStyle: { color: g.gridLine } } : {}),
+        },
+      },
+    ],
+  }
+})
 
 watch(
   () => sessionStats.value,
