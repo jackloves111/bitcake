@@ -62,7 +62,7 @@
       </template>
       <template v-else>
         <el-dropdown trigger="click" @command="handleActionCommand">
-          <el-button :icon="Operation">{{ t('common.operation') }}</el-button>
+          <el-button :icon="Operation" :title="t('common.operation')" />
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="start" :disabled="!hasSelection">
@@ -229,9 +229,6 @@
   clearable
   class="filter-input"
   />
-  </div>
-  <div class="submenu-section update-info" v-if="lastFetchedAt">
-  <span>{{ t('torrent.dataUpdateTime') }}：{{ lastFetchedAt }}</span>
   </div>
   </div>
   </Transition>
@@ -1819,7 +1816,6 @@ const removeDialog = ref({
   message: "",
   loading: false,
 });
-const lastFetchedAt = ref("");
 const limitDialogVisible = ref(false);
 const limitDialogIds = ref<number[]>([]);
 const limitDialogTargetTorrents = ref<Torrent[]>([]);
@@ -2690,7 +2686,6 @@ const performLoadTorrents = async (mode: TorrentLoadMode): Promise<void> => {
   checkTorrentStatusChanges();
   reconcileSelection();
   syncContextMenuTorrent();
-  lastFetchedAt.value = dayjs().format("YYYY-MM-DD HH:mm:ss");
 };
 
 const fullTorrentLoader = new SingleFlightExecutor<void>();

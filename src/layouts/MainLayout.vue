@@ -216,6 +216,9 @@
             <span class="nav-item__label">{{ item.label }}</span>
           </button>
 
+        </div>
+
+        <div class="drawer-footer">
           <SidebarStatus
             :metrics="statusMetrics"
             :version="frontendVersionLabel"
@@ -913,6 +916,13 @@ const handleLogout = async () => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* 版本与系统状态固定在抽屉底部 */
+.drawer-footer {
+  flex: 0 0 auto;
+  padding: 0 4px calc(env(safe-area-inset-bottom, 0px) + 4px);
+  background: var(--bc-surface);
 }
 
 /* ---------------- 过渡 ---------------- */

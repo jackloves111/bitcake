@@ -177,7 +177,6 @@ export default {
     allLabels: 'All Labels',
     noLabel: 'No Label',
     searchTorrent: 'Search torrents...',
-    dataUpdateTime: 'Data updated at',
     selectedCount: '{count} torrents selected',
     startItem: 'Start',
     stopItem: 'Stop',

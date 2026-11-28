@@ -31,6 +31,17 @@ interface SpeedLimitInfo {
   active: boolean;
 }
 
+/**
+ * 分享率徽章底色。
+ * 用固定的深色值而不是主题变量：白字在浅色/深色主题下都需要足够对比度。
+ */
+const ratioBadgeColor = (ratio?: number): string => {
+  if (!ratio) return "#6e6e73"; // 0：中性灰
+  if (ratio < 1) return "#b25000"; // 低于目标：橙
+  if (ratio < 3) return "#248a3d"; // 正常：绿
+  return "#0066cc"; // 高分享率：蓝
+};
+
 interface TorrentTableOptions {
   visibleColumns: Ref<TorrentColumnConfig[]>;
   compact: Ref<boolean>;
@@ -256,11 +267,20 @@ export const useTorrentTable = (options: TorrentTableOptions) => {
       case "totalSize":
         return h("span", formatBytes(row.totalSize));
       case "uploadRatio":
+        // 徽章底色直接内联：列模型在 TableV2 的渲染上下文里创建，
+        // 组件 scoped 样式无法命中，之前的白字被 Element Plus 默认色盖掉导致看不清。
         return h(
           ElTag,
           {
             size: "small",
             class: ["ratio-tag", options.getRatioClass(row.uploadRatio)],
+            style: {
+              border: "none",
+              color: "#fff",
+              "background-color": ratioBadgeColor(row.uploadRatio),
+              "font-variant-numeric": "tabular-nums",
+              "font-weight": "600",
+            },
           },
           () => options.formatRatio(row.uploadRatio)
         );

@@ -90,11 +90,6 @@
   width: 100%;
 }
 
-.update-info {
-  color: var(--bc-text-subtle);
-  font-size: 12px;
-}
-
 /* ---------------- 列表容器 ---------------- */
 .table-container {
   display: flex;
@@ -192,10 +187,6 @@
     width: 200px;
   }
 
-  .update-info {
-    margin-left: auto;
-  }
-
   .pagination {
     justify-content: flex-end;
   }
@@ -216,18 +207,47 @@
    小屏细化
    ========================================================================== */
 @media (max-width: 768px) {
-  .actions-group {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  .toolbar {
+    gap: 8px;
   }
 
-  .actions-group :deep(.el-button) {
+  /* 移动端工具栏：主按钮占剩余宽度，其余收成等宽方形图标按钮，保持一行 */
+  .actions-group {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
     width: 100%;
+    min-width: 0;
+  }
+
+  .actions-group > :deep(.el-button:first-child) {
+    flex: 1 1 auto;
+    min-width: 0;
     justify-content: center;
   }
 
+  .actions-group > :deep(.el-button:not(:first-child)),
+  .actions-group > :deep(.el-dropdown),
+  .actions-group > :deep(.el-dropdown .el-button) {
+    flex: 0 0 auto;
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .actions-group > :deep(.el-dropdown) {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Element Plus 相邻按钮的默认外边距会和 flex gap 叠加 */
+  .actions-group :deep(.el-button) {
+    margin-left: 0;
+  }
+
   .filter-toggle {
-    width: 100%;
+    width: 36px;
   }
 }
 
@@ -670,15 +690,6 @@
 @media (max-width: 768px) {
   .home-view {
     gap: 10px;
-  }
-
-  .actions-group :deep(.el-button) {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .filter-toggle {
-    width: 100%;
   }
 
   .pagination :deep(.el-pagination) {

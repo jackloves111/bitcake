@@ -177,7 +177,6 @@ export default {
     allLabels: '全部标签',
     noLabel: '无标签',
     searchTorrent: '搜索种子...',
-    dataUpdateTime: '数据更新时间',
     selectedCount: '已选 {count} 个种子',
     startItem: '开始',
     stopItem: '暂停',
